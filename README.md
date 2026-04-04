@@ -18,3 +18,13 @@ manifesto doctor --json
 - `doctor`: package drift, bundler integration, composition integrity, and skills setup checks
 
 The current scaffold intentionally uses only Node built-ins so the package can run without introducing extra CLI runtime dependencies during the first implementation pass.
+
+## Publishing
+
+GitHub Actions includes a manual `Publish npm Package` workflow.
+
+- Run it from the Actions tab on `main`
+- Choose `npm-tag` such as `latest` or `next`
+- Set `dry-run=true` when you want to validate the tarball without publishing
+
+If npm trusted publishing is not configured for `@manifesto-ai/cli`, add a repository secret named `NPM_TOKEN` with publish access to the `@manifesto-ai` scope.

@@ -2,6 +2,17 @@ name: Publish npm Package
 
 on:
   workflow_dispatch:
+    inputs:
+      npm-tag:
+        description: npm dist-tag to publish under
+        required: true
+        default: latest
+        type: string
+      dry-run:
+        description: Run npm publish in dry-run mode
+        required: true
+        default: false
+        type: boolean
   push:
     tags:
       - "v*.*.*"
@@ -9,9 +20,17 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    concurrency:
+      group: publish-npm
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NPM_TAG: ${{ inputs.npm-tag || 'latest' }}
+      DRY_RUN: ${{ inputs.dry-run || false }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,5 +51,26 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Guard publish target
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          if [[ "${DRY_RUN}" != "true" && "${GITHUB_REF_NAME}" != "main" ]]; then
+            echo "Real publishes must run from the main branch."
+            echo "Use dry-run on feature branches, or rerun this workflow from main."
+            exit 1
+          fi
+
+      - name: Configure npm token
+        if: ${{ env.NPM_TOKEN != '' }}
+        shell: bash
+        run: npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}"
+
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        shell: bash
+        run: |
+          args=(publish --access public --provenance --tag "${NPM_TAG}")
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+          npm "${args[@]}"
