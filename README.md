@@ -17,7 +17,9 @@ manifesto doctor --json
 - `add`: optional capability install plan with governance dependency guardrails
 - `doctor`: package drift, bundler integration, composition integrity, and skills setup checks
 
-The current scaffold intentionally uses only Node built-ins so the package can run without introducing extra CLI runtime dependencies during the first implementation pass.
+The current scaffold keeps its core planning and doctor logic lightweight, while the interactive `init` flow now uses Ink for a richer terminal UI.
+
+When `manifesto init` runs in a TTY, it now opens an Ink-based wizard for bundler, preset, tooling, sample-file selection, and final confirmation. The flag-based non-interactive path still works the same way for agents and CI.
 
 ## Publishing
 
