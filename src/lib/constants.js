@@ -1,4 +1,7 @@
-export const PRESETS = ["base", "governed"];
+export const PRESETS = ["base", "lineage", "gov"];
+export const PRESET_ALIASES = {
+  governed: "gov",
+};
 export const BUNDLERS = [
   "vite",
   "webpack",
@@ -108,3 +111,34 @@ export const MANIFESTO_CONFIG_FILENAMES = [
 
 export const SKILLS_CODEX_MARKER = ".manifesto-codex-install.json";
 export const SKILLS_CODEX_DIR_NAME = "manifesto";
+
+export function normalizePreset(value) {
+  if (!value) {
+    return value;
+  }
+
+  return PRESET_ALIASES[value] ?? value;
+}
+
+export function presetToCapabilities(preset) {
+  switch (normalizePreset(preset)) {
+    case "lineage":
+      return ["lineage"];
+    case "gov":
+      return ["lineage", "governance"];
+    default:
+      return [];
+  }
+}
+
+export function inferPresetFromCapabilities(capabilities = []) {
+  if (capabilities.includes("governance")) {
+    return "gov";
+  }
+
+  if (capabilities.includes("lineage")) {
+    return "lineage";
+  }
+
+  return "base";
+}

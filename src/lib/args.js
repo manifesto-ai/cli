@@ -2,7 +2,12 @@ import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import process from "node:process";
 import { CliError } from "./errors.js";
-import { BUNDLERS, PRESETS, TOOLING_KEYS } from "./constants.js";
+import {
+  BUNDLERS,
+  normalizePreset,
+  PRESETS,
+  TOOLING_KEYS,
+} from "./constants.js";
 
 export function parseInitArgs(argv) {
   const { values } = parseArgs({
@@ -27,20 +32,23 @@ Usage:
   manifesto init [options]
 
 Options:
-  --preset <base|governed>
+  --preset <base|lineage|gov>
   --bundler <vite|webpack|rollup|esbuild|rspack|node-loader>
   --tooling <comma-separated values>
   --no-sample
   --dry-run
   --non-interactive
   --cwd <path>
+
+Legacy alias:
+  governed -> gov
 `);
     process.exit(0);
   }
 
-  const preset = values.preset;
+  const preset = normalizePreset(values.preset);
   if (preset && !PRESETS.includes(preset)) {
-    throw new CliError(`Unsupported preset "${preset}".`);
+    throw new CliError(`Unsupported preset "${values.preset}".`);
   }
 
   const bundler = values.bundler;

@@ -11,8 +11,13 @@ const PRESET_OPTIONS = [
     description: "Install sdk + compiler and generate a minimal runtime path.",
   },
   {
-    value: "governed",
-    label: "governed runtime",
+    value: "lineage",
+    label: "lineage runtime",
+    description: "Add seal-aware continuity on top of the base runtime path.",
+  },
+  {
+    value: "gov",
+    label: "gov runtime",
     description: "Add lineage + governance on top of the base runtime path.",
   },
 ];

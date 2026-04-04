@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 import { join } from "node:path";
-import { MANIFESTO_CONFIG_FILENAMES } from "./constants.js";
+import {
+  MANIFESTO_CONFIG_FILENAMES,
+  normalizePreset,
+  presetToCapabilities,
+} from "./constants.js";
 import { fileExists } from "./project.js";
 
 export async function readManifestoConfig(cwd) {
@@ -22,9 +26,10 @@ export async function readManifestoConfig(cwd) {
 }
 
 export function createManifestoConfig({ bundler, preset, tooling }) {
+  const normalizedPreset = normalizePreset(preset);
   return normalizeManifestoConfig({
     bundler,
-    capabilities: preset === "governed" ? ["lineage", "governance"] : [],
+    capabilities: presetToCapabilities(normalizedPreset),
     tooling: {
       codegen: tooling.includes("codegen"),
       skills: tooling.includes("skills"),

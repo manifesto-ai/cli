@@ -42,7 +42,7 @@ export async function handleInitCommand(argv) {
     }
     if (!options.preset) {
       throw new CliError(
-        'Missing "--preset". Valid values: base, governed.',
+        'Missing "--preset". Valid values: base, lineage, gov.',
       );
     }
   }

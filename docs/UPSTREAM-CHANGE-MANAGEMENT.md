@@ -362,7 +362,7 @@ CLI repo:
 
 검증 조합 예시:
 
-- preset: `base`, `governed`
+- preset: `base`, `lineage`, `gov`
 - bundler: `vite`, `webpack`, `node-loader`
 - tooling: `none`, `codegen`, `skills`
 
@@ -415,7 +415,7 @@ CLI repo:
 최소한 다음은 항상 돌려야 한다.
 
 1. 빈 fixture에 `manifesto init --preset base --bundler vite`
-2. 빈 fixture에 `manifesto init --preset governed --bundler webpack --tooling codegen,skills`
+2. 빈 fixture에 `manifesto init --preset gov --bundler webpack --tooling codegen,skills`
 3. `manifesto add lineage`
 4. `manifesto add governance --auto-deps`
 5. `manifesto doctor --json`

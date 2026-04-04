@@ -6,6 +6,8 @@ import {
   BUNDLER_CONFIG_CANDIDATES,
   CAPABILITY_DEFINITIONS,
   COMPILER_BUNDLER_IMPORTS,
+  inferPresetFromCapabilities,
+  normalizePreset,
   TOOLING_KEYS,
 } from "./constants.js";
 import { CliError } from "./errors.js";
@@ -26,12 +28,13 @@ import {
 } from "./project.js";
 
 export async function buildInitPlan({ cwd, bundler, preset, tooling, sample }) {
+  const normalizedPreset = normalizePreset(preset);
   const normalizedTooling = dedupeTooling(tooling);
   const packageJson = await readPackageJson(cwd);
   const existingConfig = await readManifestoConfig(cwd);
   const nextConfig = mergeManifestoConfig(
-    existingConfig?.config ?? createManifestoConfig({ bundler, preset, tooling: normalizedTooling }),
-    createManifestoConfig({ bundler, preset, tooling: normalizedTooling }),
+    existingConfig?.config ?? createManifestoConfig({ bundler, preset: normalizedPreset, tooling: normalizedTooling }),
+    createManifestoConfig({ bundler, preset: normalizedPreset, tooling: normalizedTooling }),
   );
 
   const installGroups = {
@@ -39,11 +42,12 @@ export async function buildInitPlan({ cwd, bundler, preset, tooling, sample }) {
     devDependencies: [...BASE_DEV_DEPENDENCIES],
   };
 
-  if (preset === "governed") {
-    installGroups.dependencies.push(
-      CAPABILITY_DEFINITIONS.lineage.packageName,
-      CAPABILITY_DEFINITIONS.governance.packageName,
-    );
+  if (normalizedPreset === "lineage" || normalizedPreset === "gov") {
+    installGroups.dependencies.push(CAPABILITY_DEFINITIONS.lineage.packageName);
+  }
+
+  if (normalizedPreset === "gov") {
+    installGroups.dependencies.push(CAPABILITY_DEFINITIONS.governance.packageName);
   }
 
   for (const toolingKey of normalizedTooling) {
@@ -70,14 +74,14 @@ export async function buildInitPlan({ cwd, bundler, preset, tooling, sample }) {
   }
 
   if (sample) {
-    files.push(...await buildSampleFiles({ cwd, preset }));
+    files.push(...await buildSampleFiles({ cwd, preset: normalizedPreset }));
   }
 
   return {
     cwd,
     packageManager: detectPackageManager(cwd),
     bundler,
-    preset,
+    preset: normalizedPreset,
     tooling: normalizedTooling,
     installGroups: dedupeInstallGroups(installGroups),
     files,
@@ -159,7 +163,7 @@ Then retry: manifesto add governance
     cwd,
     packageManager: detectPackageManager(cwd),
     bundler: nextConfig.bundler,
-    preset: nextConfig.capabilities.includes("governance") ? "governed" : "base",
+    preset: inferPresetFromCapabilities(nextConfig.capabilities),
     tooling: Object.entries(nextConfig.tooling)
       .filter(([, enabled]) => enabled)
       .map(([name]) => name),
@@ -260,7 +264,7 @@ async function buildSampleFiles({ cwd, preset }) {
   if (!(await fileExists(runtimePath))) {
     files.push({
       path: runtimePath,
-      content: preset === "governed" ? sampleGovernedRuntime() : sampleBaseRuntime(),
+      content: sampleRuntimeForPreset(preset),
       mode: "write",
       reason: "add a starter runtime integration example",
     });
@@ -519,6 +523,29 @@ export async function decrementCounter() {
 `;
 }
 
+function sampleLineageRuntime() {
+  return `import { createManifesto } from "@manifesto-ai/sdk";
+import { createInMemoryLineageStore, withLineage } from "@manifesto-ai/lineage";
+import counterDomain from "../../manifesto/counter.mel";
+
+const runtime = withLineage(createManifesto(counterDomain, {}), {
+  store: createInMemoryLineageStore(),
+}).activate();
+
+export function getCounterSnapshot() {
+  return runtime.getSnapshot();
+}
+
+export async function commitIncrement() {
+  return runtime.commitAsync(runtime.createIntent(runtime.MEL.actions.increment));
+}
+
+export async function commitDecrement() {
+  return runtime.commitAsync(runtime.createIntent(runtime.MEL.actions.decrement));
+}
+`;
+}
+
 function sampleGovernedRuntime() {
   return `import { createManifesto } from "@manifesto-ai/sdk";
 import { createInMemoryLineageStore, withLineage } from "@manifesto-ai/lineage";
@@ -553,4 +580,15 @@ export async function proposeIncrement() {
   return runtime.proposeAsync(runtime.createIntent(runtime.MEL.actions.increment));
 }
 `;
+}
+
+function sampleRuntimeForPreset(preset) {
+  switch (preset) {
+    case "lineage":
+      return sampleLineageRuntime();
+    case "gov":
+      return sampleGovernedRuntime();
+    default:
+      return sampleBaseRuntime();
+  }
 }

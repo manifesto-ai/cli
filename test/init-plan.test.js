@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildInitPlan } from "../src/lib/plans.js";
 
-test("buildInitPlan scaffolds governed vite projects with config and samples", async () => {
+test("buildInitPlan scaffolds gov vite projects with config and samples", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "manifesto-cli-init-"));
   await writeFile(join(cwd, "package.json"), JSON.stringify({
     name: "fixture",
@@ -19,7 +19,7 @@ export default defineConfig({});
   const plan = await buildInitPlan({
     cwd,
     bundler: "vite",
-    preset: "governed",
+    preset: "gov",
     tooling: ["codegen", "skills"],
     sample: true,
   });
@@ -53,4 +53,37 @@ export default defineConfig({});
 
   const persistedViteConfig = await readFile(join(cwd, "vite.config.ts"), "utf8");
   assert.match(persistedViteConfig, /defineConfig/);
+});
+
+test("buildInitPlan scaffolds lineage projects without governance", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "manifesto-cli-lineage-"));
+  await writeFile(join(cwd, "package.json"), JSON.stringify({
+    name: "fixture",
+    type: "module",
+  }, null, 2));
+
+  const plan = await buildInitPlan({
+    cwd,
+    bundler: "node-loader",
+    preset: "lineage",
+    tooling: [],
+    sample: true,
+  });
+
+  assert.deepEqual(plan.installGroups.dependencies, [
+    "@manifesto-ai/lineage",
+    "@manifesto-ai/sdk",
+  ]);
+  assert.deepEqual(plan.installGroups.devDependencies, [
+    "@manifesto-ai/compiler",
+  ]);
+
+  const configFile = plan.files.find((file) => file.path.endsWith("manifesto.config.ts"));
+  assert.ok(configFile);
+  assert.match(configFile.content, /capabilities: \["lineage"\]/);
+
+  const runtimeFile = plan.files.find((file) => file.path.endsWith("src\/manifesto\/runtime.js"));
+  assert.ok(runtimeFile);
+  assert.match(runtimeFile.content, /withLineage/);
+  assert.doesNotMatch(runtimeFile.content, /withGovernance/);
 });

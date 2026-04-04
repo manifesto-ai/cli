@@ -18,7 +18,8 @@ Commands:
 
 Examples:
   manifesto init --preset base --bundler vite
-  manifesto init --preset governed --bundler webpack --tooling codegen,skills
+  manifesto init --preset lineage --bundler vite
+  manifesto init --preset gov --bundler webpack --tooling codegen,skills
   manifesto add governance --auto-deps
   manifesto doctor --json
 `;
