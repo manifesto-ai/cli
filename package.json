@@ -1,0 +1,53 @@
+{
+  "name": "@manifesto-ai/cli",
+  "version": "0.1.0",
+  "description": "Official CLI for installing, configuring, and validating Manifesto projects",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "bin": {
+    "manifesto": "bin/manifesto.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "manifesto": "node ./bin/manifesto.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "manifesto",
+    "cli",
+    "mel",
+    "dx",
+    "tooling"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/manifesto-ai/cli.git"
+  },
+  "homepage": "https://github.com/manifesto-ai/cli#readme",
+  "bugs": {
+    "url": "https://github.com/manifesto-ai/cli/issues"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@manifesto-ai/codegen": "^0.2.3",
+    "@manifesto-ai/compiler": "^3.1.1",
+    "@manifesto-ai/mel-lsp": "^1.0.3",
+    "@manifesto-ai/sdk": "^3.4.0",
+    "@manifesto-ai/skills": "^0.3.0"
+  }
+}
