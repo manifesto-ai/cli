@@ -3,10 +3,11 @@ import { resolve } from "node:path";
 import process from "node:process";
 import { CliError } from "./errors.js";
 import {
-  BUNDLERS,
-  normalizePreset,
-  PRESETS,
-  TOOLING_KEYS,
+  CODEGEN_MODES,
+  INTEGRATION_MODES,
+  RUNTIMES,
+  SAMPLE_MODES,
+  SKILLS_MODES,
 } from "./constants.js";
 
 export function parseInitArgs(argv) {
@@ -14,10 +15,11 @@ export function parseInitArgs(argv) {
     args: argv,
     allowPositionals: false,
     options: {
-      preset: { type: "string" },
-      bundler: { type: "string" },
-      tooling: { type: "string" },
-      "no-sample": { type: "boolean" },
+      runtime: { type: "string" },
+      integration: { type: "string" },
+      codegen: { type: "string" },
+      skills: { type: "string" },
+      sample: { type: "string" },
       "dry-run": { type: "boolean" },
       "non-interactive": { type: "boolean" },
       cwd: { type: "string" },
@@ -32,39 +34,145 @@ Usage:
   manifesto init [options]
 
 Options:
-  --preset <base|lineage|gov>
-  --bundler <vite|webpack|rollup|esbuild|rspack|node-loader>
-  --tooling <comma-separated values>
-  --no-sample
+  --runtime <base|lineage|gov>
+  --integration <none|vite|webpack|rollup|esbuild|rspack|node-loader>
+  --codegen <off|install|wire>
+  --skills <off|install|codex>
+  --sample <none|counter>
   --dry-run
   --non-interactive
   --cwd <path>
-
-Legacy alias:
-  governed -> gov
 `);
     process.exit(0);
   }
 
-  const preset = normalizePreset(values.preset);
-  if (preset && !PRESETS.includes(preset)) {
-    throw new CliError(`Unsupported preset "${values.preset}".`);
-  }
-
-  const bundler = values.bundler;
-  if (bundler && !BUNDLERS.includes(bundler)) {
-    throw new CliError(`Unsupported bundler "${bundler}".`);
-  }
-
-  const tooling = parseTooling(values.tooling);
+  validateEnumOption("runtime", values.runtime, RUNTIMES);
+  validateEnumOption("integration", values.integration, INTEGRATION_MODES);
+  validateEnumOption("codegen", values.codegen, CODEGEN_MODES);
+  validateEnumOption("skills", values.skills, SKILLS_MODES);
+  validateEnumOption("sample", values.sample, SAMPLE_MODES);
 
   return {
-    preset,
-    bundler,
-    tooling,
-    sample: !values["no-sample"],
+    runtime: values.runtime,
+    integration: values.integration,
+    codegen: values.codegen,
+    skills: values.skills,
+    sample: values.sample,
     dryRun: Boolean(values["dry-run"]),
     nonInteractive: Boolean(values["non-interactive"]),
+    cwd: values.cwd ? resolveCwd(values.cwd) : process.cwd(),
+  };
+}
+
+export function parseIntegrateArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      cwd: { type: "string" },
+      "dry-run": { type: "boolean" },
+      help: { type: "boolean", short: "h" },
+    },
+  });
+
+  if (values.help) {
+    console.log(`manifesto integrate
+
+Usage:
+  manifesto integrate <none|vite|webpack|rollup|esbuild|rspack|node-loader> [options]
+
+Options:
+  --dry-run
+  --cwd <path>
+`);
+    process.exit(0);
+  }
+
+  const integration = positionals[0];
+  validateEnumOption("integration", integration, INTEGRATION_MODES);
+
+  return {
+    integration,
+    dryRun: Boolean(values["dry-run"]),
+    cwd: values.cwd ? resolveCwd(values.cwd) : process.cwd(),
+  };
+}
+
+export function parseSetupArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      cwd: { type: "string" },
+      "dry-run": { type: "boolean" },
+      help: { type: "boolean", short: "h" },
+    },
+  });
+
+  if (values.help) {
+    console.log(`manifesto setup
+
+Usage:
+  manifesto setup codegen <off|install|wire> [options]
+  manifesto setup skills <off|install|codex> [options]
+
+Options:
+  --dry-run
+  --cwd <path>
+`);
+    process.exit(0);
+  }
+
+  const [target, state] = positionals;
+  if (!target) {
+    throw new CliError('Missing setup target. Example: "manifesto setup codegen wire"');
+  }
+
+  if (target !== "codegen" && target !== "skills") {
+    throw new CliError(`Unsupported setup target "${target}".`);
+  }
+
+  const allowed = target === "codegen" ? CODEGEN_MODES : SKILLS_MODES;
+  validateEnumOption(`${target} state`, state, allowed);
+
+  return {
+    target,
+    state,
+    dryRun: Boolean(values["dry-run"]),
+    cwd: values.cwd ? resolveCwd(values.cwd) : process.cwd(),
+  };
+}
+
+export function parseScaffoldArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      cwd: { type: "string" },
+      "dry-run": { type: "boolean" },
+      help: { type: "boolean", short: "h" },
+    },
+  });
+
+  if (values.help) {
+    console.log(`manifesto scaffold
+
+Usage:
+  manifesto scaffold <none|counter> [options]
+
+Options:
+  --dry-run
+  --cwd <path>
+`);
+    process.exit(0);
+  }
+
+  const sample = positionals[0];
+  validateEnumOption("sample", sample, SAMPLE_MODES);
+
+  return {
+    sample,
+    dryRun: Boolean(values["dry-run"]),
     cwd: values.cwd ? resolveCwd(values.cwd) : process.cwd(),
   };
 }
@@ -136,23 +244,14 @@ Options:
   };
 }
 
-function parseTooling(rawValue) {
-  if (!rawValue) {
-    return [];
+function validateEnumOption(label, value, allowed) {
+  if (value == null) {
+    return;
   }
 
-  const tooling = rawValue
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-
-  for (const entry of tooling) {
-    if (!TOOLING_KEYS.includes(entry)) {
-      throw new CliError(`Unsupported tooling "${entry}".`);
-    }
+  if (!allowed.includes(value)) {
+    throw new CliError(`Unsupported ${label} "${value}".`);
   }
-
-  return tooling;
 }
 
 function resolveCwd(value) {

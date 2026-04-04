@@ -2,6 +2,9 @@ import { CliError } from "./lib/errors.js";
 import { handleAddCommand } from "./commands/add.js";
 import { handleDoctorCommand } from "./commands/doctor.js";
 import { handleInitCommand } from "./commands/init.js";
+import { handleIntegrateCommand } from "./commands/integrate.js";
+import { handleScaffoldCommand } from "./commands/scaffold.js";
+import { handleSetupCommand } from "./commands/setup.js";
 
 const HELP_TEXT = `manifesto
 
@@ -11,16 +14,20 @@ Usage:
   manifesto <command> [options]
 
 Commands:
-  init      Inject Manifesto into an existing project
-  add       Add an optional Manifesto capability
-  doctor    Diagnose package, bundler, and tooling drift
-  help      Show this message
+  init        Declare Manifesto intent and install the required packages
+  integrate   Configure a host integration surface such as vite or node-loader
+  setup       Install or configure Manifesto tooling such as codegen or skills
+  scaffold    Generate optional sample files
+  add         Deprecated compatibility wrapper for the old capability flow
+  doctor      Diagnose package, integration, and tooling drift
+  help        Show this message
 
 Examples:
-  manifesto init --preset base --bundler vite
-  manifesto init --preset lineage --bundler vite
-  manifesto init --preset gov --bundler webpack --tooling codegen,skills
-  manifesto add governance --auto-deps
+  manifesto init --runtime gov --integration none --codegen install --skills codex
+  manifesto integrate vite
+  manifesto setup codegen wire
+  manifesto setup skills codex
+  manifesto scaffold counter
   manifesto doctor --json
 `;
 
@@ -35,6 +42,12 @@ export async function runCli(argv = []) {
   switch (command) {
     case "init":
       return handleInitCommand(rest);
+    case "integrate":
+      return handleIntegrateCommand(rest);
+    case "setup":
+      return handleSetupCommand(rest);
+    case "scaffold":
+      return handleScaffoldCommand(rest);
     case "add":
       return handleAddCommand(rest);
     case "doctor":

@@ -63,8 +63,8 @@ export async function readPackageJson(cwd) {
   return readJsonFile(join(cwd, "package.json"));
 }
 
-export function detectPackageManager(cwd) {
-  return detectPackageManagerImpl(cwd);
+export function detectPackageManager(cwd, packageJson = null) {
+  return detectPackageManagerImpl(cwd, packageJson);
 }
 
 export function detectBundler(cwd) {

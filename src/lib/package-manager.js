@@ -62,13 +62,37 @@ export function buildInstallCommand(packageManager, dependencyType, packages) {
   }
 }
 
-export function runInstallCommand({ cwd, command, args }) {
+export function buildExecCommand(packageManager, binary, args = []) {
+  switch (packageManager) {
+    case "pnpm":
+      return {
+        command: "pnpm",
+        args: ["exec", binary, ...args],
+      };
+    case "yarn":
+      return {
+        command: "yarn",
+        args: ["exec", binary, ...args],
+      };
+    default:
+      return {
+        command: "npm",
+        args: ["exec", "--", binary, ...args],
+      };
+  }
+}
+
+export function runCommand({ cwd, command, args }) {
   const result = spawnSync(command, args, {
     cwd,
     stdio: "inherit",
   });
 
   if (result.status !== 0) {
-    throw new CliError(`Package installation failed: ${command} ${args.join(" ")}`);
+    throw new CliError(`Command failed: ${command} ${args.join(" ")}`);
   }
+}
+
+export function runInstallCommand({ cwd, command, args }) {
+  runCommand({ cwd, command, args });
 }

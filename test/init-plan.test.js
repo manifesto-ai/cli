@@ -3,25 +3,27 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildInitPlan } from "../src/lib/plans.js";
+import {
+  buildInitPlan,
+  buildIntegratePlan,
+  buildSetupPlan,
+} from "../src/lib/plans.js";
 
-test("buildInitPlan scaffolds gov vite projects with config and samples", async () => {
+test("buildInitPlan supports install-only intent with explicit tooling states", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "manifesto-cli-init-"));
   await writeFile(join(cwd, "package.json"), JSON.stringify({
     name: "fixture",
     type: "module",
   }, null, 2));
-  await writeFile(join(cwd, "vite.config.ts"), `import { defineConfig } from "vite";
-
-export default defineConfig({});
-`);
+  await writeFile(join(cwd, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
 
   const plan = await buildInitPlan({
     cwd,
-    bundler: "vite",
-    preset: "gov",
-    tooling: ["codegen", "skills"],
-    sample: true,
+    runtime: "gov",
+    integration: "none",
+    codegen: "install",
+    skills: "codex",
+    sample: "none",
   });
 
   assert.deepEqual(plan.installGroups.dependencies, [
@@ -35,55 +37,95 @@ export default defineConfig({});
     "@manifesto-ai/skills",
   ]);
 
+  assert.equal(plan.intent.runtime, "gov");
+  assert.equal(plan.intent.integration.mode, "none");
+  assert.equal(plan.intent.tooling.codegen, "install");
+  assert.equal(plan.intent.tooling.skills, "codex");
+  assert.equal(plan.intent.sample, "none");
+
   const configFile = plan.files.find((file) => file.path.endsWith("manifesto.config.ts"));
   assert.ok(configFile);
-  assert.match(configFile.content, /capabilities: \["governance", "lineage"\]/);
+  assert.match(configFile.content, /runtime: "gov"/);
+  assert.match(configFile.content, /mode: "none"/);
+  assert.match(configFile.content, /codegen: "install"/);
+  assert.match(configFile.content, /skills: "codex"/);
+  assert.match(configFile.content, /sample: "none"/);
 
-  const viteFile = plan.files.find((file) => file.path.endsWith("vite.config.ts"));
-  assert.ok(viteFile);
-  assert.match(viteFile.content, /melPlugin\(\{ codegen: createCompilerCodegen\(\) \}\)/);
-
-  const runtimeFile = plan.files.find((file) => file.path.endsWith("src/manifesto/runtime.js"));
-  assert.ok(runtimeFile);
-  assert.match(runtimeFile.content, /withGovernance/);
-
-  const melFile = plan.files.find((file) => file.path.endsWith("manifesto/counter.mel"));
-  assert.ok(melFile);
-  assert.match(melFile.content, /domain Counter/);
-
-  const persistedViteConfig = await readFile(join(cwd, "vite.config.ts"), "utf8");
-  assert.match(persistedViteConfig, /defineConfig/);
+  assert.equal(plan.files.length, 1);
+  assert.equal(plan.commands.length, 1);
+  assert.equal(plan.commands[0].command, "pnpm");
+  assert.deepEqual(plan.commands[0].args, ["exec", "manifesto-skills", "install-codex"]);
 });
 
-test("buildInitPlan scaffolds lineage projects without governance", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "manifesto-cli-lineage-"));
+test("buildIntegratePlan patches vite config when integration is selected", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "manifesto-cli-vite-"));
   await writeFile(join(cwd, "package.json"), JSON.stringify({
     name: "fixture",
     type: "module",
   }, null, 2));
+  await writeFile(join(cwd, "manifesto.config.ts"), `export default {
+  runtime: "base",
+  integration: {
+    mode: "vite",
+  },
+  tooling: {
+    codegen: "wire",
+    skills: "off",
+  },
+  sample: "none",
+};
+`);
+  await writeFile(join(cwd, "vite.config.ts"), `import { defineConfig } from "vite";
 
-  const plan = await buildInitPlan({
+export default defineConfig({});
+`);
+
+  const plan = await buildIntegratePlan({
     cwd,
-    bundler: "node-loader",
-    preset: "lineage",
-    tooling: [],
-    sample: true,
+    integration: "vite",
   });
 
-  assert.deepEqual(plan.installGroups.dependencies, [
-    "@manifesto-ai/lineage",
-    "@manifesto-ai/sdk",
-  ]);
+  const viteFile = plan.files.find((file) => file.path.endsWith("vite.config.ts"));
+  assert.ok(viteFile);
+  assert.match(viteFile.content, /melPlugin/);
+});
+
+test("buildSetupPlan keeps codegen install-only when integration is none", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "manifesto-cli-codegen-"));
+  await writeFile(join(cwd, "package.json"), JSON.stringify({
+    name: "fixture",
+    type: "module",
+  }, null, 2));
+  await writeFile(join(cwd, "manifesto.config.ts"), `export default {
+  runtime: "base",
+  integration: {
+    mode: "none",
+  },
+  tooling: {
+    codegen: "off",
+    skills: "off",
+  },
+  sample: "none",
+};
+`);
+
+  const plan = await buildSetupPlan({
+    cwd,
+    target: "codegen",
+    state: "install",
+  });
+
+  assert.equal(plan.intent.tooling.codegen, "install");
+  assert.equal(plan.intent.integration.mode, "none");
+  assert.equal(plan.files.filter((file) => file.path.endsWith(".config.ts")).length, 1);
+  assert.equal(plan.files.length, 1);
   assert.deepEqual(plan.installGroups.devDependencies, [
+    "@manifesto-ai/codegen",
     "@manifesto-ai/compiler",
   ]);
 
-  const configFile = plan.files.find((file) => file.path.endsWith("manifesto.config.ts"));
-  assert.ok(configFile);
-  assert.match(configFile.content, /capabilities: \["lineage"\]/);
-
-  const runtimeFile = plan.files.find((file) => file.path.endsWith("src\/manifesto\/runtime.js"));
-  assert.ok(runtimeFile);
-  assert.match(runtimeFile.content, /withLineage/);
-  assert.doesNotMatch(runtimeFile.content, /withGovernance/);
+  const configFile = plan.files[0];
+  const serialized = await readFile(join(cwd, "manifesto.config.ts"), "utf8");
+  assert.match(serialized, /codegen: "off"/);
+  assert.match(configFile.content, /codegen: "install"/);
 });

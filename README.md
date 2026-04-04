@@ -1,26 +1,59 @@
 # @manifesto-ai/cli
 
-Official CLI scaffold for installing, configuring, and validating Manifesto projects.
+Official CLI for installing, configuring, and validating Manifesto projects.
 
 ## Commands
 
 ```bash
-manifesto init --preset base --bundler vite
-manifesto init --preset lineage --bundler vite
-manifesto init --preset gov --bundler webpack --tooling codegen,skills
-manifesto add governance --auto-deps
+manifesto init --runtime gov --integration none --codegen install --skills codex
+manifesto integrate vite
+manifesto setup codegen wire
+manifesto setup skills codex
+manifesto scaffold counter
 manifesto doctor --json
 ```
 
-## Current scope
+## Current model
 
-- `init`: package install plan, bundler wiring, `manifesto.config.ts`, sample MEL/runtime files
-- `add`: optional capability install plan with governance dependency guardrails
-- `doctor`: package drift, bundler integration, composition integrity, and skills setup checks
+- `init`: declare Manifesto intent, install runtime/tooling packages, and optionally run selected setup steps
+- `integrate`: patch a host integration surface such as `vite`, `webpack`, `rollup`, `esbuild`, `rspack`, or `node-loader`
+- `setup`: manage stateful tooling modes such as `codegen=off|install|wire` and `skills=off|install|codex`
+- `scaffold`: generate optional sample files such as the counter MEL runtime
+- `doctor`: validate the declared intent in `manifesto.config.*` against actual repo state
+- `add`: deprecated compatibility wrapper for the older capability-based flow
 
-The current scaffold keeps its core planning and doctor logic lightweight, while the interactive `init` flow now uses Ink for a richer terminal UI.
+The CLI now treats `manifesto.config.*` as the source of truth:
 
-When `manifesto init` runs in a TTY, it now opens an Ink-based wizard for bundler, preset, tooling, sample-file selection, and final confirmation. The flag-based non-interactive path still works the same way for agents and CI.
+```ts
+export default {
+  runtime: "gov",
+  integration: {
+    mode: "none",
+  },
+  tooling: {
+    codegen: "install",
+    skills: "codex",
+  },
+  sample: "none",
+};
+```
+
+This makes "packages only", "install but do not wire codegen", and "install skills plus run Codex setup" first-class states.
+
+## Interactive init
+
+When `manifesto init` runs in a TTY, it opens an Ink-based wizard that walks through:
+
+- runtime
+- integration mode
+- codegen mode
+- skills mode
+- sample mode
+- final review
+
+The wizard defaults to the conservative install-only path: `runtime=base`, `integration=none`, `codegen=off`, `skills=off`, `sample=none`.
+
+Use `--non-interactive` when you want explicit flags only.
 
 ## Publishing
 

@@ -2,22 +2,50 @@ export function printPlanSummary(plan, { dryRun, command }) {
   console.log(`manifesto ${command}${dryRun ? " --dry-run" : ""}`);
   console.log("");
 
+  console.log("Intent");
+  console.log(`  runtime: ${plan.intent.runtime}`);
+  console.log(`  integration: ${plan.intent.integration.mode}`);
+  console.log(`  codegen: ${plan.intent.tooling.codegen}`);
+  console.log(`  skills: ${plan.intent.tooling.skills}`);
+  console.log(`  sample: ${plan.intent.sample}`);
+  console.log("");
+
   console.log("Packages");
+  let hasPackages = false;
   for (const dependencyType of ["dependencies", "devDependencies"]) {
     const packages = plan.installGroups[dependencyType];
     if (packages.length === 0) {
       continue;
     }
 
+    hasPackages = true;
     const label = dependencyType === "dependencies" ? "dependencies" : "devDependencies";
     console.log(`  ${label}: ${packages.join(", ")}`);
+  }
+  if (!hasPackages) {
+    console.log("  (none)");
   }
 
   console.log("");
   console.log("Files");
-  for (const fileAction of plan.files) {
-    console.log(`  ${fileAction.path}`);
-    console.log(`    -> ${fileAction.reason}`);
+  if (plan.files.length === 0) {
+    console.log("  (none)");
+  } else {
+    for (const fileAction of plan.files) {
+      console.log(`  ${fileAction.path}`);
+      console.log(`    -> ${fileAction.reason}`);
+    }
+  }
+
+  console.log("");
+  console.log("Commands");
+  if (plan.commands.length === 0) {
+    console.log("  (none)");
+  } else {
+    for (const commandStep of plan.commands) {
+      console.log(`  ${commandStep.command} ${commandStep.args.join(" ")}`);
+      console.log(`    -> ${commandStep.reason}`);
+    }
   }
 
   if (plan.notes.length > 0) {

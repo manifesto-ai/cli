@@ -1,14 +1,20 @@
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import {
-  BASE_DEPENDENCIES,
-  BASE_DEV_DEPENDENCIES,
   BUNDLER_CONFIG_CANDIDATES,
-  CAPABILITY_DEFINITIONS,
+  CODEGEN_MODES,
   COMPILER_BUNDLER_IMPORTS,
-  inferPresetFromCapabilities,
-  normalizePreset,
-  TOOLING_KEYS,
+  INTEGRATION_MODES,
+  PACKAGE_DEFINITIONS,
+  RUNTIMES,
+  SAMPLE_MODES,
+  SKILLS_MODES,
+  normalizeCodegenMode,
+  normalizeIntegrationMode,
+  normalizeRuntime,
+  normalizeSampleMode,
+  normalizeSkillsMode,
+  runtimeToPackages,
 } from "./constants.js";
 import { CliError } from "./errors.js";
 import {
@@ -17,9 +23,13 @@ import {
   readManifestoConfig,
   serializeManifestoConfig,
 } from "./config.js";
-import { buildInstallCommand, runInstallCommand } from "./package-manager.js";
 import {
-  detectBundler,
+  buildExecCommand,
+  buildInstallCommand,
+  runCommand,
+  runInstallCommand,
+} from "./package-manager.js";
+import {
   detectPackageManager,
   fileExists,
   findBundlerConfigPath,
@@ -27,153 +37,169 @@ import {
   writeTextFile,
 } from "./project.js";
 
-export async function buildInitPlan({ cwd, bundler, preset, tooling, sample }) {
-  const normalizedPreset = normalizePreset(preset);
-  const normalizedTooling = dedupeTooling(tooling);
-  const packageJson = await readPackageJson(cwd);
-  const existingConfig = await readManifestoConfig(cwd);
-  const nextConfig = mergeManifestoConfig(
-    existingConfig?.config ?? createManifestoConfig({ bundler, preset: normalizedPreset, tooling: normalizedTooling }),
-    createManifestoConfig({ bundler, preset: normalizedPreset, tooling: normalizedTooling }),
-  );
-
-  const installGroups = {
-    dependencies: [...BASE_DEPENDENCIES],
-    devDependencies: [...BASE_DEV_DEPENDENCIES],
-  };
-
-  if (normalizedPreset === "lineage" || normalizedPreset === "gov") {
-    installGroups.dependencies.push(CAPABILITY_DEFINITIONS.lineage.packageName);
-  }
-
-  if (normalizedPreset === "gov") {
-    installGroups.dependencies.push(CAPABILITY_DEFINITIONS.governance.packageName);
-  }
-
-  for (const toolingKey of normalizedTooling) {
-    const definition = CAPABILITY_DEFINITIONS[toolingKey];
-    installGroups[definition.dependencyType].push(definition.packageName);
-  }
-
-  const files = [];
-  files.push({
-    path: join(cwd, "manifesto.config.ts"),
-    content: serializeManifestoConfig(nextConfig),
-    mode: "write",
-    reason: "record Manifesto intent for add/doctor/sync workflows",
+export async function buildInitPlan({
+  cwd,
+  runtime,
+  integration,
+  codegen,
+  skills,
+  sample,
+}) {
+  const existingConfig = await resolveExistingConfig(cwd);
+  const nextConfig = mergeManifestoConfig(existingConfig, {
+    runtime,
+    integration: integration ? { mode: integration } : undefined,
+    tooling: {
+      codegen,
+      skills,
+    },
+    sample,
   });
 
-  const bundlerAction = await buildBundlerIntegrationAction({
+  return buildPlanFromConfig({
     cwd,
-    bundler,
-    tooling: normalizedTooling,
-    packageJson,
+    currentConfig: existingConfig,
+    nextConfig,
+    commandName: "init",
+    applyIntegration: nextConfig.integration.mode !== "none",
+    applySample: nextConfig.sample !== "none",
+    applySkillsSetup: nextConfig.tooling.skills === "codex",
   });
-  if (bundlerAction) {
-    files.push(bundlerAction);
-  }
-
-  if (sample) {
-    files.push(...await buildSampleFiles({ cwd, preset: normalizedPreset }));
-  }
-
-  return {
-    cwd,
-    packageManager: detectPackageManager(cwd),
-    bundler,
-    preset: normalizedPreset,
-    tooling: normalizedTooling,
-    installGroups: dedupeInstallGroups(installGroups),
-    files,
-    notes: buildSharedNotes({ bundler, tooling: normalizedTooling }),
-  };
 }
 
-export async function buildAddPlan({ cwd, capability, autoDeps }) {
-  const definition = CAPABILITY_DEFINITIONS[capability];
-  if (!definition) {
-    throw new CliError(
-      `Unsupported capability "${capability}". Valid values: lineage, governance, codegen, skills.`,
-    );
-  }
-
-  const detectedBundler = detectBundler(cwd);
-  const existingConfig = await readManifestoConfig(cwd);
-  const config = existingConfig?.config ?? createManifestoConfig({
-    bundler: detectedBundler.bundler === "unknown" ? "vite" : detectedBundler.bundler,
-    preset: "base",
-    tooling: [],
+export async function buildIntegratePlan({ cwd, integration }) {
+  const existingConfig = await resolveExistingConfig(cwd);
+  const nextConfig = mergeManifestoConfig(existingConfig, {
+    integration: { mode: integration },
   });
 
-  const installGroups = {
-    dependencies: [],
-    devDependencies: [],
-  };
-  const notes = [];
-
-  if (definition.requires?.includes("lineage")) {
-    const lineagePresent = config.capabilities.includes("lineage");
-    if (!lineagePresent && !autoDeps) {
-      throw new CliError(`governance requires lineage.
-
-In Manifesto, governance adds legitimacy to a world that already has continuity.
-Without lineage, there is no history to govern.
-
-Run first:  manifesto add lineage
-Then retry: manifesto add governance
-`);
-    }
-
-    if (!lineagePresent && autoDeps) {
-      installGroups.dependencies.push(CAPABILITY_DEFINITIONS.lineage.packageName);
-      notes.push(
-        "Installing @manifesto-ai/lineage because governance composes on top of continuity.",
-      );
-    }
-  }
-
-  installGroups[definition.dependencyType].push(definition.packageName);
-
-  const nextConfig = mergeManifestoConfig(config, mutateConfigForCapability(config, capability, autoDeps));
-  const files = [{
-    path: join(cwd, "manifesto.config.ts"),
-    content: serializeManifestoConfig(nextConfig),
-    mode: "write",
-    reason: "keep CLI intent in sync with added capabilities",
-  }];
-
-  if (capability === "codegen") {
-    const packageJson = await readPackageJson(cwd);
-    const bundlerAction = await buildBundlerIntegrationAction({
-      cwd,
-      bundler: nextConfig.bundler,
-      tooling: Object.entries(nextConfig.tooling)
-        .filter(([, enabled]) => enabled)
-        .map(([name]) => name),
-      packageJson,
-    });
-    if (bundlerAction) {
-      files.push(bundlerAction);
-    }
-  }
-
-  notes.push(...buildCapabilityNotes(capability));
-
-  return {
+  return buildPlanFromConfig({
     cwd,
-    packageManager: detectPackageManager(cwd),
-    bundler: nextConfig.bundler,
-    preset: inferPresetFromCapabilities(nextConfig.capabilities),
-    tooling: Object.entries(nextConfig.tooling)
-      .filter(([, enabled]) => enabled)
-      .map(([name]) => name),
-    installGroups: dedupeInstallGroups(installGroups),
-    files,
-    notes,
-  };
+    currentConfig: existingConfig,
+    nextConfig,
+    commandName: "integrate",
+    applyIntegration: nextConfig.integration.mode !== "none",
+    applySample: false,
+    applySkillsSetup: false,
+  });
+}
+
+export async function buildSetupPlan({ cwd, target, state }) {
+  const existingConfig = await resolveExistingConfig(cwd);
+
+  if (target === "codegen") {
+    const nextConfig = mergeManifestoConfig(existingConfig, {
+      tooling: {
+        codegen: state,
+      },
+    });
+
+    return buildPlanFromConfig({
+      cwd,
+      currentConfig: existingConfig,
+      nextConfig,
+      commandName: "setup",
+      applyIntegration: nextConfig.tooling.codegen === "wire",
+      applySample: false,
+      applySkillsSetup: false,
+    });
+  }
+
+  if (target === "skills") {
+    const nextConfig = mergeManifestoConfig(existingConfig, {
+      tooling: {
+        skills: state,
+      },
+    });
+
+    return buildPlanFromConfig({
+      cwd,
+      currentConfig: existingConfig,
+      nextConfig,
+      commandName: "setup",
+      applyIntegration: false,
+      applySample: false,
+      applySkillsSetup: nextConfig.tooling.skills === "codex",
+    });
+  }
+
+  throw new CliError(`Unsupported setup target "${target}". Valid values: codegen, skills.`);
+}
+
+export async function buildScaffoldPlan({ cwd, sample }) {
+  const existingConfig = await resolveExistingConfig(cwd);
+  const nextConfig = mergeManifestoConfig(existingConfig, {
+    sample,
+  });
+
+  return buildPlanFromConfig({
+    cwd,
+    currentConfig: existingConfig,
+    nextConfig,
+    commandName: "scaffold",
+    applyIntegration: false,
+    applySample: nextConfig.sample !== "none",
+    applySkillsSetup: false,
+  });
+}
+
+export async function buildAddPlan({ cwd, capability }) {
+  const existingConfig = await resolveExistingConfig(cwd);
+  let nextConfig = existingConfig;
+
+  switch (capability) {
+    case "lineage":
+      nextConfig = mergeManifestoConfig(existingConfig, {
+        runtime: existingConfig.runtime === "gov" ? "gov" : "lineage",
+      });
+      break;
+    case "governance":
+      nextConfig = mergeManifestoConfig(existingConfig, {
+        runtime: "gov",
+      });
+      break;
+    case "codegen":
+      nextConfig = mergeManifestoConfig(existingConfig, {
+        tooling: {
+          codegen: existingConfig.integration.mode === "none" ? "install" : "wire",
+        },
+      });
+      break;
+    case "skills":
+      nextConfig = mergeManifestoConfig(existingConfig, {
+        tooling: {
+          skills: "install",
+        },
+      });
+      break;
+    default:
+      throw new CliError(
+        `Unsupported capability "${capability}". Valid values: lineage, governance, codegen, skills.`,
+      );
+  }
+
+  const plan = await buildPlanFromConfig({
+    cwd,
+    currentConfig: existingConfig,
+    nextConfig,
+    commandName: "add",
+    applyIntegration: capability === "codegen" && nextConfig.tooling.codegen === "wire",
+    applySample: false,
+    applySkillsSetup: false,
+  });
+
+  plan.notes.unshift(
+    `manifesto add is deprecated. Use ${deprecatedAddReplacement(capability, nextConfig)} instead.`,
+  );
+
+  return plan;
 }
 
 export async function applyPlan(plan) {
+  for (const fileAction of plan.files) {
+    await writeTextFile(fileAction.path, fileAction.content);
+  }
+
   for (const dependencyType of ["dependencies", "devDependencies"]) {
     const installCommand = buildInstallCommand(
       plan.packageManager,
@@ -185,15 +211,144 @@ export async function applyPlan(plan) {
     }
   }
 
-  for (const fileAction of plan.files) {
-    await writeTextFile(fileAction.path, fileAction.content);
+  for (const commandStep of plan.commands) {
+    runCommand({
+      cwd: plan.cwd,
+      command: commandStep.command,
+      args: commandStep.args,
+    });
   }
 }
 
-async function buildBundlerIntegrationAction({ cwd, bundler, tooling, packageJson }) {
-  if (bundler === "node-loader") {
+async function buildPlanFromConfig({
+  cwd,
+  currentConfig,
+  nextConfig,
+  commandName,
+  applyIntegration,
+  applySample,
+  applySkillsSetup,
+}) {
+  validateConfigIntent(nextConfig);
+
+  const packageJson = await readPackageJson(cwd);
+  const packageManager = detectPackageManager(cwd, packageJson);
+  const installGroups = collectInstallGroups(nextConfig);
+  const files = [{
+    path: join(cwd, "manifesto.config.ts"),
+    content: serializeManifestoConfig(nextConfig),
+    mode: "write",
+    reason: "record Manifesto intent for doctor and future CLI actions",
+  }];
+  const notes = buildSharedNotes({
+    commandName,
+    currentConfig,
+    nextConfig,
+    packageManager,
+  });
+
+  if (applyIntegration && nextConfig.integration.mode !== "none") {
+    const integrationAction = await buildBundlerIntegrationAction({
+      cwd,
+      mode: nextConfig.integration.mode,
+      includeCodegen: nextConfig.tooling.codegen === "wire",
+      packageJson,
+    });
+    if (integrationAction) {
+      files.push(integrationAction);
+    } else {
+      notes.push(`No ${nextConfig.integration.mode} integration patch was needed.`);
+    }
+  }
+
+  if (applySample && nextConfig.sample === "counter") {
+    files.push(...await buildSampleFiles({
+      cwd,
+      runtime: nextConfig.runtime,
+    }));
+  }
+
+  const commands = [];
+  if (applySkillsSetup && nextConfig.tooling.skills === "codex") {
+    commands.push({
+      ...buildExecCommand(packageManager, "manifesto-skills", ["install-codex"]),
+      reason: "install the Codex skill bundle from @manifesto-ai/skills",
+    });
+  }
+
+  return {
+    cwd,
+    packageManager,
+    intent: nextConfig,
+    installGroups,
+    files,
+    commands,
+    notes,
+  };
+}
+
+async function resolveExistingConfig(cwd) {
+  const existingConfig = await readManifestoConfig(cwd);
+  return existingConfig?.config ?? createManifestoConfig();
+}
+
+function validateConfigIntent(config) {
+  if (!RUNTIMES.includes(config.runtime)) {
+    throw new CliError(`Unsupported runtime "${config.runtime}".`);
+  }
+
+  if (!INTEGRATION_MODES.includes(config.integration.mode)) {
+    throw new CliError(`Unsupported integration "${config.integration.mode}".`);
+  }
+
+  if (!CODEGEN_MODES.includes(config.tooling.codegen)) {
+    throw new CliError(`Unsupported codegen mode "${config.tooling.codegen}".`);
+  }
+
+  if (!SKILLS_MODES.includes(config.tooling.skills)) {
+    throw new CliError(`Unsupported skills mode "${config.tooling.skills}".`);
+  }
+
+  if (!SAMPLE_MODES.includes(config.sample)) {
+    throw new CliError(`Unsupported sample mode "${config.sample}".`);
+  }
+
+  if (config.tooling.codegen === "wire" && config.integration.mode === "none") {
+    throw new CliError('codegen "wire" requires an integration mode other than "none".');
+  }
+
+  if (config.tooling.codegen === "wire" && config.integration.mode === "node-loader") {
+    throw new CliError('codegen "wire" is not supported with "node-loader". Use "install" instead.');
+  }
+}
+
+function collectInstallGroups(config) {
+  const installGroups = {
+    dependencies: [],
+    devDependencies: [],
+  };
+
+  for (const packageKey of runtimeToPackages(config.runtime)) {
+    const definition = PACKAGE_DEFINITIONS[packageKey];
+    installGroups[definition.dependencyType].push(definition.packageName);
+  }
+
+  if (config.tooling.codegen !== "off") {
+    installGroups.devDependencies.push(PACKAGE_DEFINITIONS.codegen.packageName);
+  }
+
+  if (config.tooling.skills !== "off") {
+    installGroups.devDependencies.push(PACKAGE_DEFINITIONS.skills.packageName);
+  }
+
+  return dedupeInstallGroups(installGroups);
+}
+
+async function buildBundlerIntegrationAction({ cwd, mode, includeCodegen, packageJson }) {
+  if (mode === "node-loader") {
     const nextPackageJson = packageJson ?? { scripts: {} };
     const scripts = { ...(nextPackageJson.scripts ?? {}) };
+
     if (!scripts["manifesto:node-loader"]) {
       scripts["manifesto:node-loader"] = "node --loader @manifesto-ai/compiler/node-loader ./src/index.js";
       return {
@@ -203,14 +358,11 @@ async function buildBundlerIntegrationAction({ cwd, bundler, tooling, packageJso
         reason: "add a node-loader example entry point",
       };
     }
+
     return null;
   }
 
-  if (!["vite", "webpack"].includes(bundler)) {
-    return null;
-  }
-
-  const existingPath = findBundlerConfigPath(cwd, bundler);
+  const existingPath = findBundlerConfigPath(cwd, mode);
   if (existingPath) {
     if (basename(existingPath).startsWith("next.config")) {
       return null;
@@ -218,8 +370,8 @@ async function buildBundlerIntegrationAction({ cwd, bundler, tooling, packageJso
 
     const source = await readFile(existingPath, "utf8");
     const updated = injectBundlerPlugin(source, {
-      bundler,
-      tooling,
+      bundler: mode,
+      includeCodegen,
       filename: basename(existingPath),
     });
 
@@ -231,24 +383,24 @@ async function buildBundlerIntegrationAction({ cwd, bundler, tooling, packageJso
       path: existingPath,
       content: updated,
       mode: "write",
-      reason: "wire melPlugin() into the detected bundler config",
+      reason: "wire melPlugin() into the selected integration surface",
     };
   }
 
-  const targetPath = join(cwd, defaultBundlerConfigFilename(bundler, packageJson));
+  const targetPath = join(cwd, defaultBundlerConfigFilename(mode, packageJson));
   return {
     path: targetPath,
     content: createBundlerConfigTemplate({
-      bundler,
-      tooling,
+      bundler: mode,
+      includeCodegen,
       moduleType: packageJson?.type === "module",
     }),
     mode: "write",
-    reason: "create an initial bundler config with Manifesto compiler wiring",
+    reason: `create a ${mode} config with Manifesto compiler wiring`,
   };
 }
 
-async function buildSampleFiles({ cwd, preset }) {
+async function buildSampleFiles({ cwd, runtime }) {
   const files = [];
   const melPath = join(cwd, "manifesto", "counter.mel");
   if (!(await fileExists(melPath))) {
@@ -264,7 +416,7 @@ async function buildSampleFiles({ cwd, preset }) {
   if (!(await fileExists(runtimePath))) {
     files.push({
       path: runtimePath,
-      content: sampleRuntimeForPreset(preset),
+      content: sampleRuntimeForRuntime(runtime),
       mode: "write",
       reason: "add a starter runtime integration example",
     });
@@ -287,31 +439,6 @@ async function buildSampleFiles({ cwd, preset }) {
   return files;
 }
 
-function mutateConfigForCapability(config, capability, autoDeps) {
-  const next = {
-    bundler: config.bundler,
-    capabilities: [...config.capabilities],
-    tooling: { ...config.tooling },
-  };
-
-  if (capability === "lineage") {
-    next.capabilities.push("lineage");
-  } else if (capability === "governance") {
-    if (autoDeps && !next.capabilities.includes("lineage")) {
-      next.capabilities.push("lineage");
-    }
-    next.capabilities.push("governance");
-  } else if (capability === "codegen" || capability === "skills") {
-    next.tooling[capability] = true;
-  }
-
-  return next;
-}
-
-function dedupeTooling(tooling) {
-  return Array.from(new Set(tooling ?? [])).filter((entry) => TOOLING_KEYS.includes(entry));
-}
-
 function dedupeInstallGroups(groups) {
   return {
     dependencies: Array.from(new Set(groups.dependencies)).sort(),
@@ -319,38 +446,50 @@ function dedupeInstallGroups(groups) {
   };
 }
 
-function buildSharedNotes({ bundler, tooling }) {
+function buildSharedNotes({ commandName, currentConfig, nextConfig, packageManager }) {
   const notes = ['Run "manifesto doctor" after the install to validate the resulting project state.'];
 
-  if (bundler === "webpack") {
+  if (nextConfig.integration.mode === "none" && currentConfig.integration.mode !== "none") {
+    notes.push("Integration intent is now set to none. Existing bundler wiring is left untouched.");
+  }
+
+  if (nextConfig.sample === "none" && currentConfig.sample !== "none") {
+    notes.push("Sample intent is now none. Existing sample files are left untouched.");
+  }
+
+  if (nextConfig.integration.mode === "webpack") {
     notes.push(
-      "Webpack and Next.js use the same compiler subpath, but Next-specific config still needs manual review.",
+      "Webpack and Next.js share the compiler subpath. Next-specific config still needs manual review.",
     );
   }
 
-  if (tooling.includes("skills")) {
-    notes.push("Codex: pnpm exec manifesto-skills install-codex");
-    notes.push("Claude Code: reference @node_modules/@manifesto-ai/skills/SKILL.md in CLAUDE.md");
+  if (commandName === "setup" && nextConfig.tooling.skills === "codex") {
+    notes.push(`Codex setup will run via ${packageManager} exec manifesto-skills install-codex.`);
+  }
+
+  if (nextConfig.tooling.skills === "install") {
+    notes.push("Codex setup remains optional. Use manifesto setup skills codex when you want the local skill installed.");
+  }
+
+  if (nextConfig.tooling.codegen === "install") {
+    notes.push("Codegen is installed only. Run manifesto setup codegen wire when you want compiler wiring.");
   }
 
   return notes;
 }
 
-function buildCapabilityNotes(capability) {
+function deprecatedAddReplacement(capability, nextConfig) {
   switch (capability) {
-    case "skills":
-      return [
-        "@manifesto-ai/skills installed.",
-        "Skills uses explicit setup by design.",
-        "Codex: pnpm exec manifesto-skills install-codex",
-        "Claude Code: reference @node_modules/@manifesto-ai/skills/SKILL.md in CLAUDE.md",
-      ];
+    case "lineage":
+      return "manifesto init --runtime lineage --non-interactive";
+    case "governance":
+      return "manifesto init --runtime gov --non-interactive";
     case "codegen":
-      return [
-        "Review the generated bundler config and keep createCompilerCodegen() aligned with your schema output.",
-      ];
+      return `manifesto setup codegen ${nextConfig.tooling.codegen}`;
+    case "skills":
+      return "manifesto setup skills install";
     default:
-      return [];
+      return "manifesto help";
   }
 }
 
@@ -365,44 +504,96 @@ function defaultBundlerConfigFilename(bundler, packageJson) {
     return isModule ? "webpack.config.mjs" : "webpack.config.js";
   }
 
+  if (bundler === "rollup") {
+    return "rollup.config.mjs";
+  }
+
+  if (bundler === "esbuild") {
+    return "esbuild.config.mjs";
+  }
+
+  if (bundler === "rspack") {
+    return isModule ? "rspack.config.mjs" : "rspack.config.js";
+  }
+
   return BUNDLER_CONFIG_CANDIDATES[bundler]?.[0] ?? `${bundler}.config.js`;
 }
 
-function createBundlerConfigTemplate({ bundler, tooling, moduleType }) {
-  const pluginCall = tooling.includes("codegen")
+function createBundlerConfigTemplate({ bundler, includeCodegen, moduleType }) {
+  const pluginCall = includeCodegen
     ? "melPlugin({ codegen: createCompilerCodegen() })"
     : "melPlugin()";
+  const codegenImport = includeCodegen
+    ? 'import { createCompilerCodegen } from "@manifesto-ai/codegen";\n'
+    : "";
+  const codegenRequire = includeCodegen
+    ? 'const { createCompilerCodegen } = require("@manifesto-ai/codegen");\n'
+    : "";
 
-  if (bundler === "vite") {
-    return `${tooling.includes("codegen") ? 'import { createCompilerCodegen } from "@manifesto-ai/codegen";\n' : ""}import { melPlugin } from "${COMPILER_BUNDLER_IMPORTS.vite}";
+  switch (bundler) {
+    case "vite":
+      return `${codegenImport}import { melPlugin } from "${COMPILER_BUNDLER_IMPORTS.vite}";
 import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [${pluginCall}],
 });
 `;
-  }
+    case "rollup":
+      return `${codegenImport}import { defineConfig } from "rollup";
+import { melPlugin } from "${COMPILER_BUNDLER_IMPORTS.rollup}";
 
-  if (moduleType) {
-    return `${tooling.includes("codegen") ? 'import { createCompilerCodegen } from "@manifesto-ai/codegen";\n' : ""}import { melPlugin } from "${COMPILER_BUNDLER_IMPORTS.webpack}";
+export default defineConfig({
+  plugins: [${pluginCall}],
+});
+`;
+    case "esbuild":
+      return `${codegenImport}import { build } from "esbuild";
+import { melPlugin } from "${COMPILER_BUNDLER_IMPORTS.esbuild}";
+
+await build({
+  plugins: [${pluginCall}],
+});
+`;
+    case "rspack":
+      if (moduleType) {
+        return `${codegenImport}import { melPlugin } from "${COMPILER_BUNDLER_IMPORTS.rspack}";
 
 export default {
   plugins: [${pluginCall}],
 };
 `;
-  }
+      }
 
-  return `${tooling.includes("codegen") ? 'const { createCompilerCodegen } = require("@manifesto-ai/codegen");\n' : ""}const { melPlugin } = require("${COMPILER_BUNDLER_IMPORTS.webpack}");
+      return `${codegenRequire}const { melPlugin } = require("${COMPILER_BUNDLER_IMPORTS.rspack}");
 
 module.exports = {
   plugins: [${pluginCall}],
 };
 `;
+    case "webpack":
+    default:
+      if (moduleType) {
+        return `${codegenImport}import { melPlugin } from "${COMPILER_BUNDLER_IMPORTS.webpack}";
+
+export default {
+  plugins: [${pluginCall}],
+};
+`;
+      }
+
+      return `${codegenRequire}const { melPlugin } = require("${COMPILER_BUNDLER_IMPORTS.webpack}");
+
+module.exports = {
+  plugins: [${pluginCall}],
+};
+`;
+  }
 }
 
-function injectBundlerPlugin(source, { bundler, tooling, filename }) {
+function injectBundlerPlugin(source, { bundler, includeCodegen, filename }) {
   const importTarget = COMPILER_BUNDLER_IMPORTS[bundler];
-  const pluginCall = tooling.includes("codegen")
+  const pluginCall = includeCodegen
     ? "melPlugin({ codegen: createCompilerCodegen() })"
     : "melPlugin()";
   const usesCommonJs = filename.endsWith(".cjs")
@@ -411,11 +602,11 @@ function injectBundlerPlugin(source, { bundler, tooling, filename }) {
   const hasCodegen = source.includes("createCompilerCodegen(");
   let updated = source;
 
-  if (hasPlugin && (!tooling.includes("codegen") || hasCodegen)) {
+  if (hasPlugin && (!includeCodegen || hasCodegen)) {
     return source;
   }
 
-  if (tooling.includes("codegen") && hasPlugin && !hasCodegen) {
+  if (includeCodegen && hasPlugin && !hasCodegen) {
     updated = updated.replace(/melPlugin\(\)/, pluginCall);
     updated = injectImport(updated, {
       statement: usesCommonJs
@@ -433,7 +624,7 @@ function injectBundlerPlugin(source, { bundler, tooling, filename }) {
     commonJs: usesCommonJs,
   });
 
-  if (tooling.includes("codegen")) {
+  if (includeCodegen) {
     updated = injectImport(updated, {
       statement: usesCommonJs
         ? 'const { createCompilerCodegen } = require("@manifesto-ai/codegen");'
@@ -448,6 +639,10 @@ function injectBundlerPlugin(source, { bundler, tooling, filename }) {
 
   if (/defineConfig\s*\(\s*\{/.test(updated)) {
     return updated.replace(/defineConfig\s*\(\s*\{/, `defineConfig({\n  plugins: [${pluginCall}],`);
+  }
+
+  if (/build\s*\(\s*\{/.test(updated)) {
+    return updated.replace(/build\s*\(\s*\{/, `build({\n  plugins: [${pluginCall}],`);
   }
 
   if (/module\.exports\s*=\s*\{/.test(updated)) {
@@ -582,8 +777,8 @@ export async function proposeIncrement() {
 `;
 }
 
-function sampleRuntimeForPreset(preset) {
-  switch (preset) {
+function sampleRuntimeForRuntime(runtime) {
+  switch (normalizeRuntime(runtime)) {
     case "lineage":
       return sampleLineageRuntime();
     case "gov":

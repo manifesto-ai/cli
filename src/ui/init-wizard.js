@@ -1,68 +1,61 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Box, Text, render, useInput } from "ink";
-import { BUNDLERS, TOOLING_KEYS } from "../lib/constants.js";
+import { readManifestoConfig } from "../lib/config.js";
+import { detectBundler } from "../lib/project.js";
 
 const h = React.createElement;
 
-const PRESET_OPTIONS = [
-  {
-    value: "base",
-    label: "base runtime",
-    description: "Install sdk + compiler and generate a minimal runtime path.",
-  },
-  {
-    value: "lineage",
-    label: "lineage runtime",
-    description: "Add seal-aware continuity on top of the base runtime path.",
-  },
-  {
-    value: "gov",
-    label: "gov runtime",
-    description: "Add lineage + governance on top of the base runtime path.",
-  },
+const RUNTIME_OPTIONS = [
+  ["base", "base runtime", "Install sdk + compiler only."],
+  ["lineage", "lineage runtime", "Add lineage on top of the base runtime."],
+  ["gov", "gov runtime", "Add lineage + governance on top of the base runtime."],
 ];
 
-const TOOLING_OPTIONS = [
-  {
-    value: "codegen",
-    label: "codegen",
-    description: "Wire createCompilerCodegen() into supported bundlers.",
-  },
-  {
-    value: "skills",
-    label: "skills",
-    description: "Install @manifesto-ai/skills and print the explicit next steps.",
-  },
+const INTEGRATION_OPTIONS = [
+  ["none", "no integration", "Do not patch vite, webpack, or node-loader right now."],
+  ["vite", "vite", "Use @manifesto-ai/compiler/vite."],
+  ["webpack", "webpack", "Use @manifesto-ai/compiler/webpack."],
+  ["rollup", "rollup", "Use @manifesto-ai/compiler/rollup."],
+  ["esbuild", "esbuild", "Use @manifesto-ai/compiler/esbuild."],
+  ["rspack", "rspack", "Use @manifesto-ai/compiler/rspack."],
+  ["node-loader", "node-loader", "Add a node --loader example script."],
+];
+
+const CODEGEN_OPTIONS = [
+  ["off", "off", "Do not install @manifesto-ai/codegen."],
+  ["install", "install only", "Install @manifesto-ai/codegen without wiring it."],
+  ["wire", "wire", "Install and wire codegen into the selected integration."],
+];
+
+const SKILLS_OPTIONS = [
+  ["off", "off", "Do not install @manifesto-ai/skills."],
+  ["install", "install only", "Install @manifesto-ai/skills without Codex setup."],
+  ["codex", "codex", "Install @manifesto-ai/skills and run Codex setup."],
 ];
 
 const SAMPLE_OPTIONS = [
-  {
-    value: true,
-    label: "generate sample files",
-    description: "Create a counter MEL domain and starter runtime integration.",
-  },
-  {
-    value: false,
-    label: "skip sample files",
-    description: "Only update package/config state without demo source files.",
-  },
+  ["none", "none", "Do not generate sample MEL or runtime files."],
+  ["counter", "counter sample", "Generate the counter MEL sample and starter runtime."],
 ];
 
 const REVIEW_ACTIONS = [
-  { value: "confirm", label: "apply init" },
-  { value: "back", label: "go back" },
-  { value: "cancel", label: "cancel" },
+  ["confirm", "apply init", "Write config, install packages, and run any selected setup steps."],
+  ["back", "go back", "Return to the previous step."],
+  ["cancel", "cancel", "Exit without changing the project."],
 ];
 
 export async function runInitWizard({
-  bundler,
-  detection,
-  preset,
-  tooling,
+  runtime,
+  integration,
+  codegen,
+  skills,
   sample,
   dryRun,
+  cwd,
 }) {
-  const bundlerOptions = buildBundlerOptions(detection);
+  const configRecord = await readManifestoConfig(cwd);
+  const detection = detectBundler(cwd);
+  const currentConfig = configRecord?.config ?? null;
 
   return new Promise((resolve) => {
     let settled = false;
@@ -80,12 +73,13 @@ export async function runInitWizard({
     };
 
     instance = render(h(InitWizardApp, {
-      bundlerOptions,
+      currentConfig,
       detection,
-      initialBundler: bundler ?? bundlerOptions[0]?.value ?? "vite",
-      initialPreset: preset ?? "base",
-      initialTooling: Array.isArray(tooling) ? tooling : [],
-      initialSample: sample,
+      initialRuntime: runtime ?? currentConfig?.runtime ?? "base",
+      initialIntegration: integration ?? currentConfig?.integration.mode ?? "none",
+      initialCodegen: codegen ?? currentConfig?.tooling.codegen ?? "off",
+      initialSkills: skills ?? currentConfig?.tooling.skills ?? "off",
+      initialSample: sample ?? currentConfig?.sample ?? "none",
       dryRun,
       onSubmit: finish,
       onCancel: () => finish(null),
@@ -94,11 +88,12 @@ export async function runInitWizard({
 }
 
 function InitWizardApp({
-  bundlerOptions,
+  currentConfig,
   detection,
-  initialBundler,
-  initialPreset,
-  initialTooling,
+  initialRuntime,
+  initialIntegration,
+  initialCodegen,
+  initialSkills,
   initialSample,
   dryRun,
   onSubmit,
@@ -106,19 +101,30 @@ function InitWizardApp({
 }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [cursor, setCursor] = useState(0);
-  const [bundler, setBundler] = useState(initialBundler);
-  const [preset, setPreset] = useState(initialPreset);
-  const [tooling, setTooling] = useState(dedupeTooling(initialTooling));
+  const [runtime, setRuntime] = useState(initialRuntime);
+  const [integration, setIntegration] = useState(initialIntegration);
+  const [codegen, setCodegen] = useState(initialCodegen);
+  const [skills, setSkills] = useState(initialSkills);
   const [sample, setSample] = useState(initialSample);
+
+  const stepOptions = useMemo(() => ([
+    RUNTIME_OPTIONS,
+    INTEGRATION_OPTIONS,
+    CODEGEN_OPTIONS,
+    SKILLS_OPTIONS,
+    SAMPLE_OPTIONS,
+    REVIEW_ACTIONS,
+  ]), []);
 
   useEffect(() => {
     setCursor(defaultCursorForStep(stepIndex, {
-      bundler,
-      bundlerOptions,
-      preset,
+      runtime,
+      integration,
+      codegen,
+      skills,
       sample,
     }));
-  }, [stepIndex]);
+  }, [stepIndex, runtime, integration, codegen, skills, sample]);
 
   useInput((input, key) => {
     if (input === "q" || key.escape) {
@@ -133,7 +139,7 @@ function InitWizardApp({
       return;
     }
 
-    const maxIndex = maxCursorForStep(stepIndex);
+    const maxIndex = stepOptions[stepIndex].length - 1;
     if (key.downArrow || input === "j") {
       setCursor((current) => Math.min(current + 1, maxIndex));
       return;
@@ -144,55 +150,47 @@ function InitWizardApp({
       return;
     }
 
-    if (stepIndex === 0 && (key.return || input === " ")) {
-      const nextBundler = bundlerOptions[cursor]?.value;
-      if (nextBundler) {
-        setBundler(nextBundler);
+    if (!(key.return || input === " ")) {
+      return;
+    }
+
+    const value = stepOptions[stepIndex][cursor]?.[0];
+
+    switch (stepIndex) {
+      case 0:
+        setRuntime(value);
         setStepIndex(1);
-      }
-      return;
-    }
-
-    if (stepIndex === 1 && (key.return || input === " ")) {
-      const nextPreset = PRESET_OPTIONS[cursor]?.value;
-      if (nextPreset) {
-        setPreset(nextPreset);
-        setStepIndex(2);
-      }
-      return;
-    }
-
-    if (stepIndex === 2) {
-      if (cursor < TOOLING_OPTIONS.length && (key.return || input === " ")) {
-        const nextValue = TOOLING_OPTIONS[cursor].value;
-        setTooling((current) => toggleSelection(current, nextValue));
         return;
-      }
-
-      if (cursor === TOOLING_OPTIONS.length && (key.return || input === " " || key.rightArrow)) {
+      case 1:
+        setIntegration(value);
+        if (value === "none" && codegen === "wire") {
+          setCodegen("install");
+        }
+        setStepIndex(2);
+        return;
+      case 2:
+        if (value === "wire" && (integration === "none" || integration === "node-loader")) {
+          return;
+        }
+        setCodegen(value);
         setStepIndex(3);
-      }
-      return;
-    }
-
-    if (stepIndex === 3 && (key.return || input === " ")) {
-      const nextSample = SAMPLE_OPTIONS[cursor]?.value;
-      if (typeof nextSample === "boolean") {
-        setSample(nextSample);
+        return;
+      case 3:
+        setSkills(value);
         setStepIndex(4);
-      }
-      return;
-    }
-
-    if (stepIndex === 4 && (key.return || input === " ")) {
-      const action = REVIEW_ACTIONS[cursor]?.value;
-      if (action === "confirm") {
-        onSubmit({ bundler, preset, tooling, sample });
-      } else if (action === "back") {
-        setStepIndex(3);
-      } else if (action === "cancel") {
-        onCancel();
-      }
+        return;
+      case 4:
+        setSample(value);
+        setStepIndex(5);
+        return;
+      default:
+        if (value === "confirm") {
+          onSubmit({ runtime, integration, codegen, skills, sample });
+        } else if (value === "back") {
+          setStepIndex(4);
+        } else {
+          onCancel();
+        }
     }
   });
 
@@ -203,15 +201,16 @@ function InitWizardApp({
       Box,
       { borderStyle: "single", borderColor: "cyan", paddingX: 1, paddingY: 0, flexDirection: "column" },
       h(Text, { color: "cyan", bold: true }, "Manifesto Init"),
-      h(Text, { dimColor: true }, `Step ${stepIndex + 1}/5`),
+      h(Text, { dimColor: true }, `Step ${stepIndex + 1}/6`),
       renderBody({
         stepIndex,
         cursor,
-        bundlerOptions,
+        currentConfig,
         detection,
-        bundler,
-        preset,
-        tooling,
+        runtime,
+        integration,
+        codegen,
+        skills,
         sample,
         dryRun,
       }),
@@ -219,8 +218,8 @@ function InitWizardApp({
     h(
       Box,
       { marginTop: 1, flexDirection: "column" },
-      h(Text, { dimColor: true }, "Controls: up/down move, enter select, space toggle, left back, q cancel"),
-      h(Text, { dimColor: true }, "Non-interactive mode remains available via --preset, --bundler, --tooling, --no-sample."),
+      h(Text, { dimColor: true }, "Controls: up/down move, enter select, left back, q cancel"),
+      h(Text, { dimColor: true }, "Defaults are intentionally conservative: install-only, no integration, no sample."),
     ),
   );
 }
@@ -228,215 +227,160 @@ function InitWizardApp({
 function renderBody({
   stepIndex,
   cursor,
-  bundlerOptions,
+  currentConfig,
   detection,
-  bundler,
-  preset,
-  tooling,
+  runtime,
+  integration,
+  codegen,
+  skills,
   sample,
   dryRun,
 }) {
+  const header = currentConfig
+    ? "Existing manifesto.config was detected. The wizard starts from that intent."
+    : "No manifesto.config found. Starting from the install-only baseline.";
+
   if (stepIndex === 0) {
-    const hint = detection.bundler !== "unknown"
-      ? `Detected ${detection.bundler}${detection.evidence ? ` from ${detection.evidence}` : ""}.`
-      : "No bundler was detected automatically.";
-    return h(
-      Box,
-      { flexDirection: "column", marginTop: 1 },
-      h(Text, { bold: true }, "Choose a bundler"),
-      h(Text, { dimColor: true }, hint),
-      h(Box, { flexDirection: "column", marginTop: 1 }, ...bundlerOptions.map((option, index) => renderOption({
-        key: option.value,
-        index,
-        cursor,
-        label: option.label,
-        description: option.description,
-        selected: option.value === bundler,
-        marker: option.value === bundler ? "(*)" : "( )",
-      }))),
-    );
+    return renderOptionsScreen({
+      title: "Choose a runtime",
+      description: header,
+      cursor,
+      options: RUNTIME_OPTIONS,
+      selectedValue: runtime,
+    });
   }
 
   if (stepIndex === 1) {
-    return h(
-      Box,
-      { flexDirection: "column", marginTop: 1 },
-      h(Text, { bold: true }, "Choose a runtime preset"),
-      h(Text, { dimColor: true }, "This controls which package composition path the CLI will install."),
-      h(Box, { flexDirection: "column", marginTop: 1 }, ...PRESET_OPTIONS.map((option, index) => renderOption({
-        key: option.value,
-        index,
-        cursor,
-        label: option.label,
-        description: option.description,
-        selected: option.value === preset,
-        marker: option.value === preset ? "(*)" : "( )",
-      }))),
-    );
+    const detectionText = detection.bundler !== "unknown"
+      ? `Detected ${detection.bundler}${detection.evidence ? ` from ${detection.evidence}` : ""}.`
+      : "No integration surface was detected automatically.";
+    return renderOptionsScreen({
+      title: "Choose an integration mode",
+      description: `${detectionText} "none" is the default when you only want packages and config intent.`,
+      cursor,
+      options: INTEGRATION_OPTIONS,
+      selectedValue: integration,
+    });
   }
 
   if (stepIndex === 2) {
-    return h(
-      Box,
-      { flexDirection: "column", marginTop: 1 },
-      h(Text, { bold: true }, "Choose optional tooling"),
-      h(Text, { dimColor: true }, "Toggle any extras you want bundled into the init plan."),
-      h(Box, { flexDirection: "column", marginTop: 1 }, ...TOOLING_OPTIONS.map((option, index) => renderOption({
-        key: option.value,
-        index,
-        cursor,
-        label: option.label,
-        description: option.description,
-        selected: tooling.includes(option.value),
-        marker: tooling.includes(option.value) ? "[x]" : "[ ]",
-      }))),
-      renderOption({
-        key: "continue",
-        index: TOOLING_OPTIONS.length,
-        cursor,
-        label: "continue",
-        description: tooling.length > 0
-          ? `Selected: ${tooling.join(", ")}`
-          : "No optional tooling selected.",
-        selected: false,
-        marker: "->",
-      }),
-    );
+    const codegenHint = integration === "none"
+      ? 'Select "install only" if you want @manifesto-ai/codegen without patching a host.'
+      : integration === "node-loader"
+        ? 'node-loader supports install-only today. "wire" is disabled for this integration.'
+        : `Codegen can wire into ${integration}.`;
+    return renderOptionsScreen({
+      title: "Choose a codegen mode",
+      description: codegenHint,
+      cursor,
+      options: CODEGEN_OPTIONS,
+      selectedValue: codegen,
+      disabledValues: new Set(
+        integration === "none" || integration === "node-loader"
+          ? ["wire"]
+          : [],
+      ),
+    });
   }
 
   if (stepIndex === 3) {
-    return h(
-      Box,
-      { flexDirection: "column", marginTop: 1 },
-      h(Text, { bold: true }, "Sample files"),
-      h(Text, { dimColor: true }, "Decide whether init should generate demo MEL/runtime files."),
-      h(Box, { flexDirection: "column", marginTop: 1 }, ...SAMPLE_OPTIONS.map((option, index) => renderOption({
-        key: String(option.value),
-        index,
-        cursor,
-        label: option.label,
-        description: option.description,
-        selected: option.value === sample,
-        marker: option.value === sample ? "(*)" : "( )",
-      }))),
-    );
+    return renderOptionsScreen({
+      title: "Choose a skills mode",
+      description: "Skills can stay install-only or run the Codex setup path immediately.",
+      cursor,
+      options: SKILLS_OPTIONS,
+      selectedValue: skills,
+    });
+  }
+
+  if (stepIndex === 4) {
+    return renderOptionsScreen({
+      title: "Choose a sample mode",
+      description: "Samples are optional and should not be created by default in existing projects.",
+      cursor,
+      options: SAMPLE_OPTIONS,
+      selectedValue: sample,
+    });
   }
 
   return h(
     Box,
     { flexDirection: "column", marginTop: 1 },
-    h(Text, { bold: true }, "Review the init plan"),
-    h(Text, { dimColor: true }, dryRun ? "Dry-run mode will print the plan without applying changes." : "Confirm to build and apply the init plan."),
-    h(Box, { flexDirection: "column", marginTop: 1 },
-      h(Text, null, `Bundler: ${bundler}`),
-      h(Text, null, `Preset: ${preset}`),
-      h(Text, null, `Tooling: ${tooling.length > 0 ? tooling.join(", ") : "none"}`),
-      h(Text, null, `Sample files: ${sample ? "yes" : "no"}`),
-      h(Text, null, `Mode: ${dryRun ? "dry-run" : "apply changes"}`),
-    ),
-    h(Box, { flexDirection: "column", marginTop: 1 }, ...REVIEW_ACTIONS.map((option, index) => renderOption({
-      key: option.value,
+    h(Text, { bold: true }, `Review${dryRun ? " (dry-run)" : ""}`),
+    h(Text, null, `runtime: ${runtime}`),
+    h(Text, null, `integration: ${integration}`),
+    h(Text, null, `codegen: ${codegen}`),
+    h(Text, null, `skills: ${skills}`),
+    h(Text, null, `sample: ${sample}`),
+    h(Text, { dimColor: true }, "init will write manifesto.config.ts every time and apply only the selected actions."),
+    h(Box, { flexDirection: "column", marginTop: 1 }, ...REVIEW_ACTIONS.map(([value, label, description], index) => renderOption({
+      key: value,
       index,
       cursor,
-      label: option.label,
-      description: option.value === "confirm"
-        ? "Proceed with the selections above."
-        : option.value === "back"
-          ? "Return to the previous step."
-          : "Exit without changing anything.",
+      label,
+      description,
       selected: false,
-      marker: "->",
+      marker: "·",
+      disabled: false,
     }))),
   );
 }
 
-function renderOption({
-  key,
-  index,
-  cursor,
-  label,
-  description,
-  selected,
-  marker,
-}) {
-  const active = cursor === index;
-  const color = active ? "cyan" : selected ? "green" : undefined;
-
+function renderOptionsScreen({ title, description, cursor, options, selectedValue, disabledValues = new Set() }) {
   return h(
     Box,
-    { key, flexDirection: "column", marginTop: index === 0 ? 0 : 1 },
-    h(Text, { color, bold: active }, `${active ? ">" : " "} ${marker} ${label}`),
-    description ? h(Text, { dimColor: true }, `    ${description}`) : null,
+    { flexDirection: "column", marginTop: 1 },
+    h(Text, { bold: true }, title),
+    h(Text, { dimColor: true }, description),
+    h(
+      Box,
+      { flexDirection: "column", marginTop: 1 },
+      ...options.map(([value, label, optionDescription], index) => renderOption({
+        key: value,
+        index,
+        cursor,
+        label,
+        description: optionDescription,
+        selected: value === selectedValue,
+        marker: value === selectedValue ? "(*)" : "( )",
+        disabled: disabledValues.has(value),
+      })),
+    ),
   );
 }
 
-function buildBundlerOptions(detection) {
-  return BUNDLERS
-    .filter((entry) => entry !== "unknown")
-    .map((entry) => ({
-      value: entry,
-      label: entry,
-      description: detection.bundler === entry
-        ? `Auto-detected${detection.evidence ? ` from ${detection.evidence}` : ""}.`
-        : bundlerDescription(entry),
-    }));
-}
+function renderOption({ key, index, cursor, label, description, selected, marker, disabled }) {
+  const active = index === cursor;
+  const prefix = active ? "›" : " ";
+  const color = disabled ? "gray" : active ? "cyan" : undefined;
+  const suffix = disabled ? " [disabled]" : "";
 
-function bundlerDescription(value) {
-  switch (value) {
-    case "vite":
-      return "Best supported path for MVP scaffolding and plugin patching.";
-    case "webpack":
-      return "Also covers most Next.js-style webpack projects, but may need manual review.";
-    case "rollup":
-      return "Detection and doctor support are ready; config patching is not automated yet.";
-    case "esbuild":
-      return "Detection and doctor support are ready; config patching is not automated yet.";
-    case "rspack":
-      return "Detection and doctor support are ready; config patching is not automated yet.";
-    case "node-loader":
-      return "Use compiler node-loader wiring instead of a bundler plugin.";
-    default:
-      return "";
-  }
-}
-
-function toggleSelection(values, value) {
-  if (values.includes(value)) {
-    return values.filter((entry) => entry !== value);
-  }
-
-  return [...values, value];
-}
-
-function dedupeTooling(values) {
-  return Array.from(new Set(values.filter((entry) => TOOLING_KEYS.includes(entry))));
-}
-
-function maxCursorForStep(stepIndex) {
-  switch (stepIndex) {
-    case 0:
-      return BUNDLERS.filter((entry) => entry !== "unknown").length - 1;
-    case 1:
-      return PRESET_OPTIONS.length - 1;
-    case 2:
-      return TOOLING_OPTIONS.length;
-    case 3:
-      return SAMPLE_OPTIONS.length - 1;
-    default:
-      return REVIEW_ACTIONS.length - 1;
-  }
+  return h(
+    Box,
+    { key, flexDirection: "column", marginBottom: 0 },
+    h(Text, { color, dimColor: disabled, bold: active }, `${prefix} ${marker} ${label}${selected ? " [selected]" : ""}${suffix}`),
+    h(Text, { dimColor: true }, `    ${description}`),
+  );
 }
 
 function defaultCursorForStep(stepIndex, state) {
-  if (stepIndex === 0) {
-    return Math.max(0, state.bundlerOptions.findIndex((entry) => entry.value === state.bundler));
+  switch (stepIndex) {
+    case 0:
+      return indexOfValue(RUNTIME_OPTIONS, state.runtime);
+    case 1:
+      return indexOfValue(INTEGRATION_OPTIONS, state.integration);
+    case 2:
+      return indexOfValue(CODEGEN_OPTIONS, state.codegen);
+    case 3:
+      return indexOfValue(SKILLS_OPTIONS, state.skills);
+    case 4:
+      return indexOfValue(SAMPLE_OPTIONS, state.sample);
+    default:
+      return 0;
   }
-  if (stepIndex === 1) {
-    return Math.max(0, PRESET_OPTIONS.findIndex((entry) => entry.value === state.preset));
-  }
-  if (stepIndex === 3) {
-    return Math.max(0, SAMPLE_OPTIONS.findIndex((entry) => entry.value === state.sample));
-  }
-  return 0;
+}
+
+function indexOfValue(options, value) {
+  const index = options.findIndex(([candidate]) => candidate === value);
+  return index >= 0 ? index : 0;
 }
