@@ -12,6 +12,7 @@ import {
   COMPILER_BUNDLER_IMPORTS,
   SKILLS_CODEX_DIR_NAME,
   SKILLS_CODEX_MARKER,
+  SKILLS_MANAGED_BLOCK_PREFIX,
 } from "./constants.js";
 import { detectPackageManager as detectPackageManagerImpl } from "./package-manager.js";
 
@@ -153,6 +154,22 @@ export async function detectCodexSkillsInstall() {
   return { installed: false, evidence: null };
 }
 
+export async function detectClaudeSkillsInstall(cwd) {
+  return detectManagedSkillsBlock(join(cwd, "CLAUDE.md"), cwd);
+}
+
+export async function detectCursorSkillsInstall(cwd) {
+  return detectManagedSkillsBlock(join(cwd, ".cursor", "rules", "manifesto.mdc"), cwd);
+}
+
+export async function detectCopilotSkillsInstall(cwd) {
+  return detectManagedSkillsBlock(join(cwd, ".github", "copilot-instructions.md"), cwd);
+}
+
+export async function detectWindsurfSkillsInstall(cwd) {
+  return detectManagedSkillsBlock(join(cwd, ".windsurfrules"), cwd);
+}
+
 export async function scanProjectForSignal(cwd, patterns, rootNames = ["src", "."]) {
   for (const rootName of rootNames) {
     const rootPath = resolve(cwd, rootName);
@@ -179,6 +196,19 @@ function tryReadJsonSync(filePath) {
   } catch {
     return null;
   }
+}
+
+async function detectManagedSkillsBlock(filePath, cwd) {
+  if (!existsSync(filePath)) {
+    return { installed: false, evidence: null };
+  }
+
+  const source = await readFile(filePath, "utf8");
+  if (!source.includes(SKILLS_MANAGED_BLOCK_PREFIX)) {
+    return { installed: false, evidence: null };
+  }
+
+  return { installed: true, evidence: relative(cwd, filePath) };
 }
 
 async function walkAndMatch(currentPath, patterns, cwd) {

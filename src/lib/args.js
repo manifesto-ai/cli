@@ -37,7 +37,7 @@ Options:
   --runtime <base|lineage|gov>
   --integration <none|vite|webpack|rollup|esbuild|rspack|node-loader>
   --codegen <off|install|wire>
-  --skills <off|install|codex>
+  --skills <off|install|codex|claude|cursor|copilot|windsurf|all>
   --sample <none|counter>
   --dry-run
   --non-interactive
@@ -114,7 +114,7 @@ export function parseSetupArgs(argv) {
 
 Usage:
   manifesto setup codegen <off|install|wire> [options]
-  manifesto setup skills <off|install|codex> [options]
+  manifesto setup skills <off|install|codex|claude|cursor|copilot|windsurf|all> [options]
 
 Options:
   --dry-run

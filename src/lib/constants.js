@@ -10,7 +10,47 @@ export const INTEGRATION_MODES = [
 ];
 export const DETECTABLE_BUNDLERS = [...INTEGRATION_MODES, "unknown"];
 export const CODEGEN_MODES = ["off", "install", "wire"];
-export const SKILLS_MODES = ["off", "install", "codex"];
+export const SKILLS_MODES = [
+  "off",
+  "install",
+  "codex",
+  "claude",
+  "cursor",
+  "copilot",
+  "windsurf",
+  "all",
+];
+export const SKILLS_SETUP_MODES = [
+  "codex",
+  "claude",
+  "cursor",
+  "copilot",
+  "windsurf",
+  "all",
+];
+export const SKILLS_TARGETS = [
+  "codex",
+  "claude",
+  "cursor",
+  "copilot",
+  "windsurf",
+];
+export const SKILLS_INSTALL_COMMANDS = {
+  codex: ["install-codex"],
+  claude: ["install-claude"],
+  cursor: ["install-cursor"],
+  copilot: ["install-copilot"],
+  windsurf: ["install-windsurf"],
+  all: ["install-all"],
+};
+export const SKILLS_DISPLAY_NAMES = {
+  codex: "Codex",
+  claude: "Claude Code",
+  cursor: "Cursor",
+  copilot: "GitHub Copilot",
+  windsurf: "Windsurf",
+  all: "all supported agent",
+};
 export const SAMPLE_MODES = ["none", "counter"];
 
 export const LEGACY_PRESETS = ["base", "lineage", "gov", "governed"];
@@ -87,6 +127,7 @@ export const MANIFESTO_CONFIG_FILENAMES = [
 
 export const SKILLS_CODEX_MARKER = ".manifesto-codex-install.json";
 export const SKILLS_CODEX_DIR_NAME = "manifesto";
+export const SKILLS_MANAGED_BLOCK_PREFIX = "BEGIN MANAGED BLOCK: @manifesto-ai/skills";
 
 export const PACKAGE_DEFINITIONS = {
   sdk: {

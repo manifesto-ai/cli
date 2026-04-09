@@ -44,14 +44,14 @@
     "access": "public"
   },
   "devDependencies": {
-    "@manifesto-ai/codegen": "0.2.3",
-    "@manifesto-ai/compiler": "3.1.1",
+    "@manifesto-ai/codegen": "0.2.5",
+    "@manifesto-ai/compiler": "3.3.0",
     "@manifesto-ai/mel-lsp": "1.0.3",
-    "@manifesto-ai/sdk": "3.4.0",
-    "@manifesto-ai/skills": "0.3.0"
+    "@manifesto-ai/sdk": "3.8.0",
+    "@manifesto-ai/skills": "1.0.0"
   },
   "dependencies": {
-    "ink": "6.8.0",
-    "react": "19.2.4"
+    "ink": "7.0.0",
+    "react": "19.2.5"
   }
 }

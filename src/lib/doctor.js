@@ -5,11 +5,17 @@ import {
   COMPILER_BUNDLER_IMPORTS,
   DOCTOR_PACKAGE_ORDER,
   PACKAGE_DEFINITIONS,
+  SKILLS_DISPLAY_NAMES,
+  SKILLS_TARGETS,
   runtimeToPackages,
 } from "./constants.js";
 import {
   detectBundler,
+  detectClaudeSkillsInstall,
+  detectCopilotSkillsInstall,
   detectCodexSkillsInstall,
+  detectCursorSkillsInstall,
+  detectWindsurfSkillsInstall,
   fileExists,
   findBundlerConfigPath,
   hasMelPluginConfigured,
@@ -83,6 +89,7 @@ export async function runDoctor({ cwd, strict = false }) {
 
   await addSkillsChecks({
     checks,
+    cwd,
     config,
     installedPackages,
   });
@@ -268,11 +275,12 @@ async function addCodegenChecks({ checks, cwd, config, installedPackages }) {
   ));
 }
 
-async function addSkillsChecks({ checks, config, installedPackages }) {
+async function addSkillsChecks({ checks, cwd, config, installedPackages }) {
   const skillsPackage = PACKAGE_DEFINITIONS.skills.packageName;
   const configuredMode = config?.tooling.skills ?? "off";
   const installed = Boolean(installedPackages[skillsPackage]);
-  const codexSkills = await detectCodexSkillsInstall();
+  const skillInstalls = await detectSkillInstalls(cwd);
+  const anySkillSetupInstalled = Object.values(skillInstalls).some((result) => result.installed);
 
   if (configuredMode === "off") {
     if (installed) {
@@ -280,6 +288,13 @@ async function addSkillsChecks({ checks, config, installedPackages }) {
         "Skills",
         "warn",
         `${skillsPackage} is installed, but manifesto.config sets skills=off`,
+      ));
+    }
+    if (anySkillSetupInstalled) {
+      checks.push(makeCheck(
+        "Skills",
+        "warn",
+        "agent-specific skills setup was detected, but manifesto.config sets skills=off",
       ));
     }
     return;
@@ -295,24 +310,40 @@ async function addSkillsChecks({ checks, config, installedPackages }) {
   if (configuredMode === "install") {
     checks.push(makeCheck(
       "Skills",
-      codexSkills.installed ? "warn" : "pass",
-      codexSkills.installed
-        ? "Codex setup detected, but manifesto.config only requests skills=install"
-        : "skills install intent does not require Codex setup",
-      codexSkills.installed ? { details: codexSkills.evidence } : {},
+      anySkillSetupInstalled ? "warn" : "pass",
+      anySkillSetupInstalled
+        ? "agent-specific skills setup detected, but manifesto.config only requests skills=install"
+        : "skills install intent does not require agent setup",
+      anySkillSetupInstalled ? { details: summarizeInstalledSkillEvidence(skillInstalls) } : {},
     ));
     return;
   }
 
+  if (configuredMode === "all") {
+    const missingTargets = SKILLS_TARGETS.filter((target) => !skillInstalls[target].installed);
+    checks.push(makeCheck(
+      "Skills",
+      missingTargets.length === 0 ? "pass" : "error",
+      missingTargets.length === 0
+        ? "all supported agent skill installs detected"
+        : `skills=all is missing ${missingTargets.map((target) => SKILLS_DISPLAY_NAMES[target]).join(", ")}`,
+      missingTargets.length === 0
+        ? { details: summarizeInstalledSkillEvidence(skillInstalls) }
+        : { suggestion: "Run: manifesto setup skills all" },
+    ));
+    return;
+  }
+
+  const configuredInstall = skillInstalls[configuredMode];
   checks.push(makeCheck(
     "Skills",
-    codexSkills.installed ? "pass" : "error",
-    codexSkills.installed
-      ? "Codex skill install detected"
-      : "skills=codex requires Codex setup",
-    codexSkills.installed
-      ? { details: codexSkills.evidence }
-      : { suggestion: "Run: manifesto setup skills codex" },
+    configuredInstall.installed ? "pass" : "error",
+    configuredInstall.installed
+      ? `${SKILLS_DISPLAY_NAMES[configuredMode]} skill install detected`
+      : `skills=${configuredMode} requires ${SKILLS_DISPLAY_NAMES[configuredMode]} setup`,
+    configuredInstall.installed
+      ? { details: configuredInstall.evidence }
+      : { suggestion: `Run: manifesto setup skills ${configuredMode}` },
   ));
 }
 
@@ -422,6 +453,23 @@ function summarizeChecks(checks) {
   }
 
   return summary;
+}
+
+async function detectSkillInstalls(cwd) {
+  return {
+    codex: await detectCodexSkillsInstall(),
+    claude: cwd ? await detectClaudeSkillsInstall(cwd) : { installed: false, evidence: null },
+    cursor: cwd ? await detectCursorSkillsInstall(cwd) : { installed: false, evidence: null },
+    copilot: cwd ? await detectCopilotSkillsInstall(cwd) : { installed: false, evidence: null },
+    windsurf: cwd ? await detectWindsurfSkillsInstall(cwd) : { installed: false, evidence: null },
+  };
+}
+
+function summarizeInstalledSkillEvidence(skillInstalls) {
+  return Object.entries(skillInstalls)
+    .filter(([, result]) => result.installed)
+    .map(([target, result]) => `${SKILLS_DISPLAY_NAMES[target]}: ${result.evidence}`)
+    .join(", ");
 }
 
 function makeCheck(category, status, label, extra = {}) {
