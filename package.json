@@ -1,6 +1,6 @@
 {
   "name": "@manifesto-ai/cli",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Official CLI for installing, configuring, and validating Manifesto projects",
   "type": "module",
   "main": "./src/index.js",
