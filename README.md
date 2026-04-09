@@ -25,13 +25,24 @@ If you already know you need Codex guidance:
 npx manifesto setup skills codex
 ```
 
+If you want project-local guidance for Claude Code or other supported agents:
+
+```bash
+npx manifesto setup skills claude
+npx manifesto setup skills cursor
+npx manifesto setup skills copilot
+npx manifesto setup skills windsurf
+npx manifesto setup skills all
+```
+
 ## Commands
 
 ```bash
 manifesto init --runtime base --integration vite --codegen wire --skills off
 manifesto integrate vite
 manifesto setup codegen wire
-manifesto setup skills codex
+manifesto setup skills claude
+manifesto setup skills all
 manifesto scaffold counter
 manifesto doctor --json
 ```
@@ -40,7 +51,7 @@ manifesto doctor --json
 
 - `init`: declare Manifesto intent, install runtime/tooling packages, and optionally run selected setup steps
 - `integrate`: patch a host integration surface such as `vite`, `webpack`, `rollup`, `esbuild`, `rspack`, or `node-loader`
-- `setup`: manage stateful tooling modes such as `codegen=off|install|wire` and `skills=off|install|codex`
+- `setup`: manage stateful tooling modes such as `codegen=off|install|wire` and `skills=off|install|codex|claude|cursor|copilot|windsurf|all`
 - `scaffold`: generate optional sample files such as the counter MEL runtime
 - `doctor`: validate the declared intent in `manifesto.config.*` against actual repo state
 - `add`: deprecated compatibility wrapper for the older capability-based flow
@@ -61,14 +72,14 @@ export default {
 };
 ```
 
-This makes "packages only", "install but do not wire codegen", and "install skills plus run Codex setup" first-class states.
+This makes "packages only", "install but do not wire codegen", and "install skills plus run a specific agent setup" first-class states.
 
 Supported modes:
 
 - `runtime`: `base`, `lineage`, `gov`
 - `integration.mode`: `none`, `vite`, `webpack`, `rollup`, `esbuild`, `rspack`, `node-loader`
 - `tooling.codegen`: `off`, `install`, `wire`
-- `tooling.skills`: `off`, `install`, `codex`
+- `tooling.skills`: `off`, `install`, `codex`, `claude`, `cursor`, `copilot`, `windsurf`, `all`
 - `sample`: `none`, `counter`
 
 ## Interactive Init
@@ -93,6 +104,21 @@ When the project later needs continuity or approval/history:
 - switch `runtime` from `base` to `lineage` or `gov`
 - keep the same `manifesto.config.*` workflow
 - rerun `manifesto doctor` to confirm repo state matches intent
+
+## Skills Targets
+
+`skills=install` means package only. No agent installer runs.
+
+Tool-specific modes run the matching `manifesto-skills` installer:
+
+- `codex` -> `manifesto-skills install-codex`
+- `claude` -> `manifesto-skills install-claude`
+- `cursor` -> `manifesto-skills install-cursor`
+- `copilot` -> `manifesto-skills install-copilot`
+- `windsurf` -> `manifesto-skills install-windsurf`
+- `all` -> `manifesto-skills install-all`
+
+`codex` installs into the user-level Codex home. The other agent installers default to project-local files so the repo is ready for Claude Code, Cursor, Copilot, or Windsurf immediately after `manifesto init` or `manifesto setup`.
 
 ## Publishing
 

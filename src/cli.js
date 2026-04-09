@@ -23,10 +23,10 @@ Commands:
   help        Show this message
 
 Examples:
-  manifesto init --runtime gov --integration none --codegen install --skills codex
+  manifesto init --runtime gov --integration none --codegen install --skills all
   manifesto integrate vite
   manifesto setup codegen wire
-  manifesto setup skills codex
+  manifesto setup skills claude
   manifesto scaffold counter
   manifesto doctor --json
 `;

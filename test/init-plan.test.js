@@ -57,6 +57,42 @@ test("buildInitPlan supports install-only intent with explicit tooling states", 
   assert.deepEqual(plan.commands[0].args, ["exec", "manifesto-skills", "install-codex"]);
 });
 
+test("buildSetupPlan supports project-local Claude Code skills setup", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "manifesto-cli-skills-claude-"));
+  await writeFile(join(cwd, "package.json"), JSON.stringify({
+    name: "fixture",
+    type: "module",
+  }, null, 2));
+  await writeFile(join(cwd, "manifesto.config.ts"), `export default {
+  runtime: "base",
+  integration: {
+    mode: "none",
+  },
+  tooling: {
+    codegen: "off",
+    skills: "off",
+  },
+  sample: "none",
+};
+`);
+
+  const plan = await buildSetupPlan({
+    cwd,
+    target: "skills",
+    state: "claude",
+  });
+
+  assert.equal(plan.intent.tooling.skills, "claude");
+  assert.deepEqual(plan.installGroups.devDependencies, [
+    "@manifesto-ai/compiler",
+    "@manifesto-ai/skills",
+  ]);
+  assert.equal(plan.commands.length, 1);
+  assert.match(plan.commands[0].command, /^(npm|pnpm|yarn)$/);
+  assert.equal(plan.commands[0].args.at(-2), "manifesto-skills");
+  assert.equal(plan.commands[0].args.at(-1), "install-claude");
+});
+
 test("buildIntegratePlan patches vite config when integration is selected", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "manifesto-cli-vite-"));
   await writeFile(join(cwd, "package.json"), JSON.stringify({

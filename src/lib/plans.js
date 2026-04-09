@@ -7,7 +7,10 @@ import {
   INTEGRATION_MODES,
   PACKAGE_DEFINITIONS,
   RUNTIMES,
+  SKILLS_DISPLAY_NAMES,
+  SKILLS_INSTALL_COMMANDS,
   SAMPLE_MODES,
+  SKILLS_SETUP_MODES,
   SKILLS_MODES,
   normalizeCodegenMode,
   normalizeIntegrationMode,
@@ -63,7 +66,7 @@ export async function buildInitPlan({
     commandName: "init",
     applyIntegration: nextConfig.integration.mode !== "none",
     applySample: nextConfig.sample !== "none",
-    applySkillsSetup: nextConfig.tooling.skills === "codex",
+    applySkillsSetup: SKILLS_SETUP_MODES.includes(nextConfig.tooling.skills),
   });
 }
 
@@ -119,7 +122,7 @@ export async function buildSetupPlan({ cwd, target, state }) {
       commandName: "setup",
       applyIntegration: false,
       applySample: false,
-      applySkillsSetup: nextConfig.tooling.skills === "codex",
+      applySkillsSetup: SKILLS_SETUP_MODES.includes(nextConfig.tooling.skills),
     });
   }
 
@@ -269,10 +272,11 @@ async function buildPlanFromConfig({
   }
 
   const commands = [];
-  if (applySkillsSetup && nextConfig.tooling.skills === "codex") {
+  if (applySkillsSetup && SKILLS_SETUP_MODES.includes(nextConfig.tooling.skills)) {
+    const skillCommandArgs = SKILLS_INSTALL_COMMANDS[nextConfig.tooling.skills];
     commands.push({
-      ...buildExecCommand(packageManager, "manifesto-skills", ["install-codex"]),
-      reason: "install the Codex skill bundle from @manifesto-ai/skills",
+      ...buildExecCommand(packageManager, "manifesto-skills", skillCommandArgs),
+      reason: `run the ${SKILLS_DISPLAY_NAMES[nextConfig.tooling.skills]} installer from @manifesto-ai/skills`,
     });
   }
 
@@ -463,12 +467,16 @@ function buildSharedNotes({ commandName, currentConfig, nextConfig, packageManag
     );
   }
 
-  if (commandName === "setup" && nextConfig.tooling.skills === "codex") {
-    notes.push(`Codex setup will run via ${packageManager} exec manifesto-skills install-codex.`);
+  if (commandName === "setup" && SKILLS_SETUP_MODES.includes(nextConfig.tooling.skills)) {
+    notes.push(
+      `${SKILLS_DISPLAY_NAMES[nextConfig.tooling.skills]} setup will run via ${packageManager} exec manifesto-skills ${SKILLS_INSTALL_COMMANDS[nextConfig.tooling.skills].join(" ")}.`,
+    );
   }
 
   if (nextConfig.tooling.skills === "install") {
-    notes.push("Codex setup remains optional. Use manifesto setup skills codex when you want the local skill installed.");
+    notes.push(
+      "Agent setup remains optional. Use manifesto setup skills <codex|claude|cursor|copilot|windsurf|all> when you want tool-specific guidance installed.",
+    );
   }
 
   if (nextConfig.tooling.codegen === "install") {

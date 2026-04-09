@@ -153,7 +153,7 @@ CLI가 직접 품어도 되는 것은 다음 정도로 제한한다.
 ```jsonc
 {
   "name": "@manifesto-ai/compiler",
-  "version": "3.1.1",
+  "version": "3.3.0",
   "manifesto": {
     "capability": "compiler",
     "bundlerIntegration": {
@@ -174,13 +174,16 @@ CLI가 직접 품어도 되는 것은 다음 정도로 제한한다.
 ```jsonc
 {
   "name": "@manifesto-ai/skills",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "manifesto": {
     "capability": "skills",
     "cli": {
       "installNotes": [
         "Codex: pnpm exec manifesto-skills install-codex",
-        "Claude Code: reference @node_modules/@manifesto-ai/skills/SKILL.md in CLAUDE.md"
+        "Claude Code: pnpm exec manifesto-skills install-claude",
+        "Cursor: pnpm exec manifesto-skills install-cursor",
+        "Copilot: pnpm exec manifesto-skills install-copilot",
+        "Windsurf: pnpm exec manifesto-skills install-windsurf"
       ]
     }
   }
@@ -220,12 +223,12 @@ CLI가 직접 품어도 되는 것은 다음 정도로 제한한다.
   "channel": "stable",
   "updatedAt": "2026-04-04",
   "packages": {
-    "@manifesto-ai/sdk": "^3.4.0",
-    "@manifesto-ai/compiler": "^3.1.1",
-    "@manifesto-ai/lineage": "^3.0.0",
-    "@manifesto-ai/governance": "^3.3.0",
-    "@manifesto-ai/codegen": "^0.2.3",
-    "@manifesto-ai/skills": "^0.3.0"
+    "@manifesto-ai/sdk": "^3.8.0",
+    "@manifesto-ai/compiler": "^3.3.0",
+    "@manifesto-ai/lineage": "^3.7.0",
+    "@manifesto-ai/governance": "^3.7.0",
+    "@manifesto-ai/codegen": "^0.2.5",
+    "@manifesto-ai/skills": "^1.0.0"
   }
 }
 ```

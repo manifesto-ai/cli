@@ -29,8 +29,13 @@ const CODEGEN_OPTIONS = [
 
 const SKILLS_OPTIONS = [
   ["off", "off", "Do not install @manifesto-ai/skills."],
-  ["install", "install only", "Install @manifesto-ai/skills without Codex setup."],
-  ["codex", "codex", "Install @manifesto-ai/skills and run Codex setup."],
+  ["install", "install only", "Install @manifesto-ai/skills without running any agent installer."],
+  ["codex", "codex", "Install @manifesto-ai/skills and run the Codex installer."],
+  ["claude", "claude", "Install @manifesto-ai/skills and wire Claude Code for this project."],
+  ["cursor", "cursor", "Install @manifesto-ai/skills and wire Cursor rules for this project."],
+  ["copilot", "copilot", "Install @manifesto-ai/skills and wire GitHub Copilot instructions for this project."],
+  ["windsurf", "windsurf", "Install @manifesto-ai/skills and wire Windsurf rules for this project."],
+  ["all", "all agents", "Install @manifesto-ai/skills and run every supported installer."],
 ];
 
 const SAMPLE_OPTIONS = [
@@ -286,7 +291,7 @@ function renderBody({
   if (stepIndex === 3) {
     return renderOptionsScreen({
       title: "Choose a skills mode",
-      description: "Skills can stay install-only or run the Codex setup path immediately.",
+      description: "Skills can stay install-only or immediately wire the selected agent guidance.",
       cursor,
       options: SKILLS_OPTIONS,
       selectedValue: skills,
