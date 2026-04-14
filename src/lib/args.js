@@ -193,10 +193,9 @@ export function parseAddArgs(argv) {
     console.log(`manifesto add
 
 Usage:
-  manifesto add <lineage|governance|codegen|skills> [options]
+  manifesto add <domain-name|@alias/domain-name> [options]
 
 Options:
-  --auto-deps
   --dry-run
   --cwd <path>
 `);
@@ -204,8 +203,76 @@ Options:
   }
 
   return {
-    capability: positionals[0],
+    specifier: positionals[0],
     autoDeps: Boolean(values["auto-deps"]),
+    dryRun: Boolean(values["dry-run"]),
+    cwd: values.cwd ? resolveCwd(values.cwd) : process.cwd(),
+  };
+}
+
+export function parseDiffArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      apply: { type: "boolean" },
+      "dry-run": { type: "boolean" },
+      cwd: { type: "string" },
+      help: { type: "boolean", short: "h" },
+    },
+  });
+
+  if (values.help) {
+    console.log(`manifesto diff
+
+Usage:
+  manifesto diff <domain-name|@alias/domain-name> [options]
+
+Options:
+  --apply
+  --dry-run
+  --cwd <path>
+`);
+    process.exit(0);
+  }
+
+  return {
+    specifier: positionals[0],
+    apply: Boolean(values.apply),
+    dryRun: Boolean(values["dry-run"]),
+    cwd: values.cwd ? resolveCwd(values.cwd) : process.cwd(),
+  };
+}
+
+export function parseRegistryBuildArgs(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      "out-dir": { type: "string" },
+      "dry-run": { type: "boolean" },
+      cwd: { type: "string" },
+      help: { type: "boolean", short: "h" },
+    },
+  });
+
+  if (values.help) {
+    console.log(`manifesto registry build
+
+Usage:
+  manifesto registry build [domain-name] [options]
+
+Options:
+  --out-dir <path>
+  --dry-run
+  --cwd <path>
+`);
+    process.exit(0);
+  }
+
+  return {
+    domainName: positionals[0],
+    outDir: values["out-dir"],
     dryRun: Boolean(values["dry-run"]),
     cwd: values.cwd ? resolveCwd(values.cwd) : process.cwd(),
   };
@@ -217,6 +284,7 @@ export function parseDoctorArgs(argv) {
     allowPositionals: false,
     options: {
       json: { type: "boolean" },
+      online: { type: "boolean" },
       strict: { type: "boolean" },
       cwd: { type: "string" },
       help: { type: "boolean", short: "h" },
@@ -231,6 +299,7 @@ Usage:
 
 Options:
   --json
+  --online
   --strict
   --cwd <path>
 `);
@@ -239,6 +308,7 @@ Options:
 
   return {
     json: Boolean(values.json),
+    online: Boolean(values.online),
     strict: Boolean(values.strict),
     cwd: values.cwd ? resolveCwd(values.cwd) : process.cwd(),
   };

@@ -5,6 +5,8 @@ Official CLI for installing, configuring, and validating Manifesto projects.
 Use it when you want to:
 
 - bootstrap a new Manifesto project
+- install and diff registry-backed domains
+- build registry artifacts from local domains
 - retrofit an existing repo with a bundler or loader integration
 - install optional tooling such as codegen or Codex skills
 - validate that `manifesto.config.*` still matches the real repo state
@@ -16,6 +18,7 @@ Most teams should start with `runtime=base`. Move to `runtime=lineage` or `runti
 ```bash
 npm install -D @manifesto-ai/cli
 npx manifesto init --runtime base --integration vite --codegen wire --skills off
+npx manifesto add trading-agent
 npx manifesto doctor
 ```
 
@@ -39,6 +42,9 @@ npx manifesto setup skills all
 
 ```bash
 manifesto init --runtime base --integration vite --codegen wire --skills off
+manifesto add trading-agent
+manifesto diff trading-agent --apply
+manifesto registry build
 manifesto integrate vite
 manifesto setup codegen wire
 manifesto setup skills claude
@@ -50,11 +56,14 @@ manifesto doctor --json
 ## Command Model
 
 - `init`: declare Manifesto intent, install runtime/tooling packages, and optionally run selected setup steps
+- `add`: install a domain from the configured Manifesto registry and generate an agent wrapper under `manifesto/agents`
+- `diff`: compare an installed local domain with the latest registry item and optionally apply file updates
+- `registry build`: compile local domains under `manifesto/domains` and emit publishable registry JSON artifacts
 - `integrate`: patch a host integration surface such as `vite`, `webpack`, `rollup`, `esbuild`, `rspack`, or `node-loader`
 - `setup`: manage stateful tooling modes such as `codegen=off|install|wire` and `skills=off|install|codex|claude|cursor|copilot|windsurf|all`
 - `scaffold`: generate optional sample files such as the counter MEL runtime
-- `doctor`: validate the declared intent in `manifesto.config.*` against actual repo state
-- `add`: deprecated compatibility wrapper for the older capability-based flow
+- `doctor`: validate the declared intent in `manifesto.config.*` and local `manifesto.json` domain state against actual repo state
+- `add <lineage|governance|codegen|skills>`: legacy compatibility mode when `manifesto.json` is absent
 
 The CLI treats `manifesto.config.*` as the source of truth:
 
@@ -73,6 +82,20 @@ export default {
 ```
 
 This makes "packages only", "install but do not wire codegen", and "install skills plus run a specific agent setup" first-class states.
+
+Domain and registry flows use `manifesto.json` as the source of truth:
+
+```json
+{
+  "$schema": "https://registry.manifesto-ai.dev/schema/manifesto.json",
+  "domains": "manifesto/domains",
+  "agents": "manifesto/agents",
+  "typescript": true,
+  "registries": {
+    "manifesto": "https://registry.manifesto-ai.dev"
+  }
+}
+```
 
 Supported modes:
 

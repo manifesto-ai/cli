@@ -24,9 +24,9 @@ test("doctor does not require bundler wiring when integration intent is none", a
 };
 `);
 
-  await installPackage(cwd, "@manifesto-ai/sdk", "3.8.0");
-  await installPackage(cwd, "@manifesto-ai/compiler", "3.3.0");
-  await installPackage(cwd, "@manifesto-ai/codegen", "0.2.5");
+  await installPackage(cwd, "@manifesto-ai/sdk", "3.13.0");
+  await installPackage(cwd, "@manifesto-ai/compiler", "3.4.0");
+  await installPackage(cwd, "@manifesto-ai/codegen", "0.2.7");
 
   const result = await runDoctor({ cwd });
 
@@ -59,9 +59,9 @@ test("doctor errors when codegen wire is declared but wiring is missing", async 
 export default defineConfig({});
 `);
 
-  await installPackage(cwd, "@manifesto-ai/sdk", "3.8.0");
-  await installPackage(cwd, "@manifesto-ai/compiler", "3.3.0");
-  await installPackage(cwd, "@manifesto-ai/codegen", "0.2.5");
+  await installPackage(cwd, "@manifesto-ai/sdk", "3.13.0");
+  await installPackage(cwd, "@manifesto-ai/compiler", "3.4.0");
+  await installPackage(cwd, "@manifesto-ai/codegen", "0.2.7");
 
   const result = await runDoctor({ cwd });
 
@@ -89,14 +89,14 @@ test("doctor validates project-local Claude Code skills setup", async () => {
   sample: "none",
 };
 `);
-  await writeFile(join(cwd, "CLAUDE.md"), `<!-- BEGIN MANAGED BLOCK: @manifesto-ai/skills v1.0.0 -->
+  await writeFile(join(cwd, "CLAUDE.md"), `<!-- BEGIN MANAGED BLOCK: @manifesto-ai/skills v1.0.1 -->
 See @node_modules/@manifesto-ai/skills/SKILL.md for Manifesto integration guidance.
 <!-- END MANAGED BLOCK: @manifesto-ai/skills -->
 `);
 
-  await installPackage(cwd, "@manifesto-ai/sdk", "3.8.0");
-  await installPackage(cwd, "@manifesto-ai/compiler", "3.3.0");
-  await installPackage(cwd, "@manifesto-ai/skills", "1.0.0");
+  await installPackage(cwd, "@manifesto-ai/sdk", "3.13.0");
+  await installPackage(cwd, "@manifesto-ai/compiler", "3.4.0");
+  await installPackage(cwd, "@manifesto-ai/skills", "1.0.1");
 
   const result = await runDoctor({ cwd });
 

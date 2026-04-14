@@ -6,6 +6,7 @@ export async function handleDoctorCommand(argv) {
   const options = parseDoctorArgs(argv);
   const result = await runDoctor({
     cwd: options.cwd,
+    online: options.online,
     strict: options.strict,
   });
 
