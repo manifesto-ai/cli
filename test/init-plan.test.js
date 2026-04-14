@@ -51,7 +51,12 @@ test("buildInitPlan supports install-only intent with explicit tooling states", 
   assert.match(configFile.content, /skills: "codex"/);
   assert.match(configFile.content, /sample: "none"/);
 
-  assert.equal(plan.files.length, 1);
+  const projectConfigFile = plan.files.find((file) => file.path.endsWith("manifesto.json"));
+  assert.ok(projectConfigFile);
+  assert.match(projectConfigFile.content, /"domains": "manifesto\/domains"/);
+  assert.match(projectConfigFile.content, /"agents": "manifesto\/agents"/);
+
+  assert.equal(plan.files.length, 2);
   assert.equal(plan.commands.length, 1);
   assert.equal(plan.commands[0].command, "pnpm");
   assert.deepEqual(plan.commands[0].args, ["exec", "manifesto-skills", "install-codex"]);

@@ -27,6 +27,11 @@ import {
   serializeManifestoConfig,
 } from "./config.js";
 import {
+  createManifestoProjectConfig,
+  readManifestoProjectConfig,
+  serializeManifestoProjectConfig,
+} from "./domain-config.js";
+import {
   buildExecCommand,
   buildInstallCommand,
   runCommand,
@@ -59,7 +64,7 @@ export async function buildInitPlan({
     sample,
   });
 
-  return buildPlanFromConfig({
+  const plan = await buildPlanFromConfig({
     cwd,
     currentConfig: existingConfig,
     nextConfig,
@@ -68,6 +73,18 @@ export async function buildInitPlan({
     applySample: nextConfig.sample !== "none",
     applySkillsSetup: SKILLS_SETUP_MODES.includes(nextConfig.tooling.skills),
   });
+
+  const projectConfig = await readManifestoProjectConfig(cwd);
+  if (!projectConfig) {
+    plan.files.unshift({
+      path: join(cwd, "manifesto.json"),
+      content: serializeManifestoProjectConfig(createManifestoProjectConfig()),
+      mode: "write",
+      reason: "create Manifesto domain registry config",
+    });
+  }
+
+  return plan;
 }
 
 export async function buildIntegratePlan({ cwd, integration }) {

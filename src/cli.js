@@ -1,8 +1,10 @@
 import { CliError } from "./lib/errors.js";
 import { handleAddCommand } from "./commands/add.js";
 import { handleDoctorCommand } from "./commands/doctor.js";
+import { handleDiffCommand } from "./commands/diff.js";
 import { handleInitCommand } from "./commands/init.js";
 import { handleIntegrateCommand } from "./commands/integrate.js";
+import { handleRegistryCommand } from "./commands/registry.js";
 import { handleScaffoldCommand } from "./commands/scaffold.js";
 import { handleSetupCommand } from "./commands/setup.js";
 
@@ -15,15 +17,20 @@ Usage:
 
 Commands:
   init        Declare Manifesto intent and install the required packages
+  add         Install a domain from a Manifesto registry
+  diff        Compare a local domain with the latest registry item
+  registry    Build registry JSON artifacts from local domains
   integrate   Configure a host integration surface such as vite or node-loader
   setup       Install or configure Manifesto tooling such as codegen or skills
   scaffold    Generate optional sample files
-  add         Deprecated compatibility wrapper for the old capability flow
   doctor      Diagnose package, integration, and tooling drift
   help        Show this message
 
 Examples:
   manifesto init --runtime gov --integration none --codegen install --skills all
+  manifesto add trading-agent
+  manifesto diff trading-agent --apply
+  manifesto registry build
   manifesto integrate vite
   manifesto setup codegen wire
   manifesto setup skills claude
@@ -42,14 +49,18 @@ export async function runCli(argv = []) {
   switch (command) {
     case "init":
       return handleInitCommand(rest);
+    case "add":
+      return handleAddCommand(rest);
+    case "diff":
+      return handleDiffCommand(rest);
+    case "registry":
+      return handleRegistryCommand(rest);
     case "integrate":
       return handleIntegrateCommand(rest);
     case "setup":
       return handleSetupCommand(rest);
     case "scaffold":
       return handleScaffoldCommand(rest);
-    case "add":
-      return handleAddCommand(rest);
     case "doctor":
       return handleDoctorCommand(rest);
     default:

@@ -62,6 +62,92 @@ export function printPlanSummary(plan, { dryRun, command }) {
   }
 }
 
+export function printDomainPlanSummary(plan, { dryRun, command }) {
+  console.log(`manifesto ${command}${dryRun ? " --dry-run" : ""}`);
+  console.log("");
+
+  if (plan.domainName) {
+    console.log("Domain");
+    console.log(`  name: ${plan.domainName}`);
+    if (plan.registryAlias) {
+      console.log(`  registry: ${plan.registryAlias} (${plan.registryUrl})`);
+    }
+    console.log("");
+  } else if (plan.outDir) {
+    console.log("Registry");
+    console.log(`  outDir: ${plan.outDir}`);
+    console.log("");
+  }
+
+  if (plan.installGroups) {
+    console.log("Packages");
+    let hasPackages = false;
+    for (const dependencyType of ["dependencies", "devDependencies"]) {
+      const packages = plan.installGroups[dependencyType] ?? [];
+      if (packages.length === 0) {
+        continue;
+      }
+
+      hasPackages = true;
+      console.log(`  ${dependencyType}: ${packages.join(", ")}`);
+    }
+
+    if (!hasPackages) {
+      console.log("  (none)");
+    }
+
+    if (plan.manualPeers && Object.keys(plan.manualPeers).length > 0) {
+      console.log(`  manual: ${Object.entries(plan.manualPeers).map(([name, range]) => `${name}@${range}`).join(", ")}`);
+    }
+
+    console.log("");
+  }
+
+  if (plan.env && Object.keys(plan.env).length > 0) {
+    console.log("Env");
+    for (const [key, spec] of Object.entries(plan.env)) {
+      if (!spec.required) {
+        continue;
+      }
+
+      console.log(`  ${key}`);
+      console.log(`    -> ${spec.description}`);
+    }
+    console.log("");
+  }
+
+  console.log("Files");
+  if (!plan.files || plan.files.length === 0) {
+    console.log("  (none)");
+  } else {
+    for (const fileAction of plan.files) {
+      console.log(`  ${fileAction.path}`);
+      console.log(`    -> ${fileAction.reason}`);
+    }
+  }
+
+  if (plan.notes?.length > 0) {
+    console.log("");
+    console.log("Notes");
+    for (const note of plan.notes) {
+      console.log(`  - ${note}`);
+    }
+  }
+
+  if (plan.warnings?.length > 0) {
+    console.log("");
+    console.log("Warnings");
+    for (const warning of plan.warnings) {
+      console.log(`  - ${warning}`);
+    }
+  }
+
+  if (!dryRun) {
+    console.log("");
+    console.log("Applying changes...");
+  }
+}
+
 export function printDoctorReport(result, { json }) {
   if (json) {
     console.log(JSON.stringify(result, null, 2));

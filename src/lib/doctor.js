@@ -1,6 +1,16 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { compile } from "@manifesto-ai/compiler";
+import {
+  getManifestBindingCoverage,
+  validateDomainFiles,
+  validateMcpEffectManifest,
+} from "@manifesto-ai/mcp/validation";
 import { readManifestoConfig } from "./config.js";
+import {
+  readManifestoProjectConfig,
+  resolveManifestoProjectPaths,
+} from "./domain-config.js";
 import {
   COMPILER_BUNDLER_IMPORTS,
   DOCTOR_PACKAGE_ORDER,
@@ -23,10 +33,11 @@ import {
   scanProjectForSignal,
 } from "./project.js";
 
-export async function runDoctor({ cwd, strict = false }) {
+export async function runDoctor({ cwd, strict = false, online = false }) {
   const checks = [];
   const configRecord = await readManifestoConfig(cwd);
   const config = configRecord?.config ?? null;
+  const projectConfigRecord = await readManifestoProjectConfig(cwd);
   const bundlerDetection = detectBundler(cwd);
 
   const installedPackages = {};
@@ -100,6 +111,13 @@ export async function runDoctor({ cwd, strict = false }) {
     config,
   });
 
+  await addDomainChecks({
+    checks,
+    cwd,
+    projectConfigRecord,
+    online,
+  });
+
   checks.push(...buildCompatibilityChecks(installedPackages));
 
   const counts = summarizeChecks(checks);
@@ -108,8 +126,10 @@ export async function runDoctor({ cwd, strict = false }) {
   return {
     cwd,
     strict,
+    online,
     exitCode,
     configPath: configRecord?.path ?? null,
+    projectConfigPath: projectConfigRecord?.path ?? null,
     checks,
     ...counts,
   };
@@ -376,6 +396,173 @@ async function addSampleChecks({ checks, cwd, config }) {
   ));
 }
 
+async function addDomainChecks({ checks, cwd, projectConfigRecord, online }) {
+  if (!projectConfigRecord) {
+    return;
+  }
+
+  const projectConfig = projectConfigRecord.config;
+  const paths = resolveManifestoProjectPaths(cwd, projectConfig);
+  checks.push(makeCheck("Domains", "pass", "manifesto.json detected", {
+    details: relative(cwd, projectConfigRecord.path),
+  }));
+
+  const domainsDirExists = await fileExists(paths.domainsDir);
+  checks.push(makeCheck(
+    "Domains",
+    domainsDirExists ? "pass" : "error",
+    domainsDirExists ? "domains directory detected" : "domains directory is missing",
+    { details: relative(cwd, paths.domainsDir) },
+  ));
+
+  const agentsDirExists = await fileExists(paths.agentsDir);
+  checks.push(makeCheck(
+    "Domains",
+    agentsDirExists ? "pass" : "warn",
+    agentsDirExists ? "agents directory detected" : "agents directory is missing",
+    { details: relative(cwd, paths.agentsDir) },
+  ));
+
+  if (!domainsDirExists) {
+    return;
+  }
+
+  const envContent = await readFile(join(cwd, ".env"), "utf8").catch(() => "");
+  const envValues = parseEnvFile(envContent);
+  const entries = await readdir(paths.domainsDir, { withFileTypes: true });
+  const domains = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+
+  if (domains.length === 0) {
+    checks.push(makeCheck("Domains", "warn", "no local domains found", {
+      details: relative(cwd, paths.domainsDir),
+    }));
+    return;
+  }
+
+  for (const domainName of domains) {
+    const domainDir = join(paths.domainsDir, domainName);
+    const domainEntries = await readdir(domainDir, { withFileTypes: true });
+    const invalidDirectories = domainEntries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    if (invalidDirectories.length > 0) {
+      checks.push(makeCheck(
+        "Domains",
+        "error",
+        `${domainName}: nested directories are not allowed`,
+        { details: invalidDirectories.join(", ") },
+      ));
+      continue;
+    }
+
+    const filenames = domainEntries.filter((entry) => entry.isFile()).map((entry) => entry.name).sort();
+    const fileValidation = validateDomainFiles(filenames);
+    if (!fileValidation.ok) {
+      for (const error of fileValidation.errors) {
+        checks.push(makeCheck(
+          "Domains",
+          "error",
+          `${domainName}: ${error.message}`,
+          { details: error.path },
+        ));
+      }
+      continue;
+    }
+
+    checks.push(makeCheck("Domains", "pass", `${domainName}: domain file allow-list passed`));
+
+    const melPath = join(domainDir, "domain.mel");
+    const melSource = await readFile(melPath, "utf8");
+    const compileResult = compile(melSource);
+    if (!compileResult.success || !compileResult.schema) {
+      checks.push(makeCheck(
+        "Domains",
+        "error",
+        `${domainName}: MEL compile failed`,
+        { details: compileResult.errors.map((error) => error.message).join("; ") || relative(cwd, melPath) },
+      ));
+      continue;
+    }
+
+    checks.push(makeCheck("Domains", "pass", `${domainName}: MEL compiled`, {
+      details: compileResult.schema.hash,
+    }));
+
+    if (compileResult.warnings.length > 0) {
+      checks.push(makeCheck(
+        "Domains",
+        "warn",
+        `${domainName}: compiler warnings`,
+        { details: compileResult.warnings.map((warning) => warning.message).join("; ") },
+      ));
+    }
+
+    const manifestPath = join(domainDir, "mcp-manifest.json");
+    if (!(await fileExists(manifestPath))) {
+      continue;
+    }
+
+    let manifestJson;
+    try {
+      manifestJson = JSON.parse(await readFile(manifestPath, "utf8"));
+    } catch {
+      checks.push(makeCheck("Domains", "error", `${domainName}: mcp-manifest.json is invalid JSON`));
+      continue;
+    }
+
+    const manifestValidation = validateMcpEffectManifest(manifestJson, { mode: "runtime" });
+    if (!manifestValidation.ok || !manifestValidation.value) {
+      checks.push(makeCheck(
+        "Domains",
+        "error",
+        `${domainName}: MCP manifest validation failed`,
+        { details: manifestValidation.errors.map((error) => `${error.path}: ${error.message}`).join("; ") },
+      ));
+      continue;
+    }
+
+    checks.push(makeCheck("Domains", "pass", `${domainName}: MCP manifest valid`));
+
+    const effectCoverage = getManifestBindingCoverage(
+      collectEffectTypes(compileResult.schema),
+      manifestValidation.value,
+    );
+    if (effectCoverage.missing.length > 0) {
+      checks.push(makeCheck(
+        "Domains",
+        "warn",
+        `${domainName}: missing MCP bindings`,
+        { details: effectCoverage.missing.join(", ") },
+      ));
+    } else {
+      checks.push(makeCheck("Domains", "pass", `${domainName}: effect bindings covered`));
+    }
+
+    for (const [envKey, spec] of Object.entries(manifestValidation.value.env ?? {})) {
+      if (!spec.required) {
+        continue;
+      }
+
+      const hasValue = typeof envValues[envKey] === "string" && envValues[envKey].trim().length > 0;
+      checks.push(makeCheck(
+        "Domains",
+        hasValue ? "pass" : "error",
+        `${domainName}: ${envKey} ${hasValue ? "configured" : "missing from .env"}`,
+      ));
+    }
+
+    if (online) {
+      for (const [serverName, server] of Object.entries(manifestValidation.value.servers)) {
+        const connectivity = await probeMcpServer(server, envValues);
+        checks.push(makeCheck(
+          "Domains",
+          connectivity.status,
+          `${domainName}: ${serverName} ${connectivity.label}`,
+          connectivity.details ? { details: connectivity.details } : {},
+        ));
+      }
+    }
+  }
+}
+
 function collectExpectedPackages(config) {
   const expected = new Set();
   if (!config) {
@@ -470,6 +657,111 @@ function summarizeInstalledSkillEvidence(skillInstalls) {
     .filter(([, result]) => result.installed)
     .map(([target, result]) => `${SKILLS_DISPLAY_NAMES[target]}: ${result.evidence}`)
     .join(", ");
+}
+
+function parseEnvFile(content) {
+  const values = {};
+  for (const line of content.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed.slice(separatorIndex + 1);
+    values[key] = value;
+  }
+
+  return values;
+}
+
+function collectEffectTypesFromFlow(flow, bucket = new Set()) {
+  if (!flow || typeof flow !== "object") {
+    return bucket;
+  }
+
+  if (flow.kind === "effect" && typeof flow.type === "string") {
+    bucket.add(flow.type);
+    return bucket;
+  }
+
+  if (flow.kind === "seq" && Array.isArray(flow.steps)) {
+    for (const step of flow.steps) {
+      collectEffectTypesFromFlow(step, bucket);
+    }
+    return bucket;
+  }
+
+  if (flow.kind === "if") {
+    collectEffectTypesFromFlow(flow.then, bucket);
+    if (flow.else) {
+      collectEffectTypesFromFlow(flow.else, bucket);
+    }
+  }
+
+  return bucket;
+}
+
+function collectEffectTypes(schema) {
+  const bucket = new Set();
+  for (const action of Object.values(schema.actions ?? {})) {
+    collectEffectTypesFromFlow(action.flow, bucket);
+  }
+  return Array.from(bucket.values()).sort();
+}
+
+async function probeMcpServer(server, envValues) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+
+  try {
+    const headers = {};
+    if (server.auth.type === "env") {
+      const token = envValues[server.auth.envKey] ?? process.env[server.auth.envKey];
+      if (!token) {
+        return {
+          status: "warn",
+          label: "connectivity skipped",
+          details: `Missing auth token ${server.auth.envKey}`,
+        };
+      }
+
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(server.url, {
+      method: "GET",
+      headers,
+      signal: controller.signal,
+    });
+
+    if (response.status >= 500) {
+      return {
+        status: "warn",
+        label: "unreachable",
+        details: `${response.status} ${response.statusText}`,
+      };
+    }
+
+    return {
+      status: "pass",
+      label: "reachable",
+      details: `${response.status} ${response.statusText}`,
+    };
+  } catch (error) {
+    return {
+      status: "warn",
+      label: "unreachable",
+      details: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function makeCheck(category, status, label, extra = {}) {

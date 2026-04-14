@@ -53,6 +53,29 @@ export const SKILLS_DISPLAY_NAMES = {
 };
 export const SAMPLE_MODES = ["none", "counter"];
 
+export const MANIFESTO_JSON_FILENAME = "manifesto.json";
+export const MANIFESTO_JSON_SCHEMA_URL = "https://registry.manifesto-ai.dev/schema/manifesto.json";
+export const MANIFESTO_DEFAULT_DOMAINS_DIR = "manifesto/domains";
+export const MANIFESTO_DEFAULT_AGENTS_DIR = "manifesto/agents";
+export const MANIFESTO_DEFAULT_TYPESCRIPT = true;
+export const MANIFESTO_DEFAULT_REGISTRIES = {
+  manifesto: "https://registry.manifesto-ai.dev",
+};
+export const MANIFESTO_DEFAULT_REGISTRY_ALIAS = "manifesto";
+export const MANIFESTO_DEFAULT_REGISTRY_BUILD_DIR = "registry";
+export const MANIFESTO_DEFAULT_DOMAIN_VERSION = "1.0.0";
+export const LEGACY_ADD_CAPABILITIES = ["lineage", "governance", "codegen", "skills"];
+export const DOMAIN_ALLOWED_FILENAMES = [
+  "domain.mel",
+  "mcp-manifest.json",
+  "README.md",
+];
+export const PEER_VERSION_DEFAULTS = {
+  "@manifesto-ai/sdk": "^3.13.0",
+  "@manifesto-ai/lineage": "^3.10.0",
+  "@manifesto-ai/mcp": "^1.0.0",
+};
+
 export const LEGACY_PRESETS = ["base", "lineage", "gov", "governed"];
 export const LEGACY_PRESET_ALIASES = {
   governed: "gov",
