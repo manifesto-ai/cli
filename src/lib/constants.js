@@ -71,8 +71,8 @@ export const DOMAIN_ALLOWED_FILENAMES = [
   "README.md",
 ];
 export const PEER_VERSION_DEFAULTS = {
-  "@manifesto-ai/sdk": "^3.13.0",
-  "@manifesto-ai/lineage": "^3.10.0",
+  "@manifesto-ai/sdk": "^3.17.3",
+  "@manifesto-ai/lineage": "^3.11.3",
   "@manifesto-ai/mcp": "^1.0.0",
 };
 
@@ -199,12 +199,16 @@ export function normalizeLegacyPreset(value) {
 export function runtimeToPackages(runtime) {
   switch (runtime) {
     case "gov":
-      return ["sdk", "compiler", "lineage", "governance"];
+      return ["sdk", "lineage", "governance"];
     case "lineage":
-      return ["sdk", "compiler", "lineage"];
+      return ["sdk", "lineage"];
     default:
-      return ["sdk", "compiler"];
+      return ["sdk"];
   }
+}
+
+export function requiresCompilerPackage(config) {
+  return config.integration.mode !== "none";
 }
 
 export function runtimeToLegacyCapabilities(runtime) {

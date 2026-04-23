@@ -15,6 +15,7 @@ import {
   COMPILER_BUNDLER_IMPORTS,
   DOCTOR_PACKAGE_ORDER,
   PACKAGE_DEFINITIONS,
+  requiresCompilerPackage,
   SKILLS_DISPLAY_NAMES,
   SKILLS_TARGETS,
   runtimeToPackages,
@@ -571,6 +572,10 @@ function collectExpectedPackages(config) {
 
   for (const packageKey of runtimeToPackages(config.runtime)) {
     expected.add(PACKAGE_DEFINITIONS[packageKey].packageName);
+  }
+
+  if (requiresCompilerPackage(config)) {
+    expected.add(PACKAGE_DEFINITIONS.compiler.packageName);
   }
 
   if (config.tooling.codegen !== "off") {

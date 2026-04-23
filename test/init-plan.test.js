@@ -33,7 +33,6 @@ test("buildInitPlan supports install-only intent with explicit tooling states", 
   ]);
   assert.deepEqual(plan.installGroups.devDependencies, [
     "@manifesto-ai/codegen",
-    "@manifesto-ai/compiler",
     "@manifesto-ai/skills",
   ]);
 
@@ -89,7 +88,6 @@ test("buildSetupPlan supports project-local Claude Code skills setup", async () 
 
   assert.equal(plan.intent.tooling.skills, "claude");
   assert.deepEqual(plan.installGroups.devDependencies, [
-    "@manifesto-ai/compiler",
     "@manifesto-ai/skills",
   ]);
   assert.equal(plan.commands.length, 1);
@@ -162,7 +160,6 @@ test("buildSetupPlan keeps codegen install-only when integration is none", async
   assert.equal(plan.files.length, 1);
   assert.deepEqual(plan.installGroups.devDependencies, [
     "@manifesto-ai/codegen",
-    "@manifesto-ai/compiler",
   ]);
 
   const configFile = plan.files[0];

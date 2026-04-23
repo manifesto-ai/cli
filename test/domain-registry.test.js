@@ -50,8 +50,8 @@ function buildRegistryItem(name = "trading-agent") {
       },
     ],
     peers: {
-      "@manifesto-ai/sdk": "^3.13.0",
-      "@manifesto-ai/lineage": "^3.10.0",
+      "@manifesto-ai/sdk": "^3.17.3",
+      "@manifesto-ai/lineage": "^3.11.3",
     },
   };
 }
@@ -116,8 +116,8 @@ test("buildDomainAddPlan installs registry files and generates an agent wrapper"
     assert.match(agentFile.content, /createManifesto/);
     assert.doesNotMatch(agentFile.content, /mcpEffects/);
     assert.deepEqual([...plan.installGroups.dependencies].sort(), [
-      "@manifesto-ai/lineage@^3.10.0",
-      "@manifesto-ai/sdk@^3.13.0",
+      "@manifesto-ai/lineage@^3.11.3",
+      "@manifesto-ai/sdk@^3.17.3",
     ].sort());
     assert.equal(plan.packageManager, "pnpm");
     assert.match(plan.notes[1], /Schema hash:/);

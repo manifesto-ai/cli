@@ -10,6 +10,7 @@ import {
   SKILLS_DISPLAY_NAMES,
   SKILLS_INSTALL_COMMANDS,
   SAMPLE_MODES,
+  requiresCompilerPackage,
   SKILLS_SETUP_MODES,
   SKILLS_MODES,
   normalizeCodegenMode,
@@ -354,6 +355,10 @@ function collectInstallGroups(config) {
     installGroups[definition.dependencyType].push(definition.packageName);
   }
 
+  if (requiresCompilerPackage(config)) {
+    installGroups.devDependencies.push(PACKAGE_DEFINITIONS.compiler.packageName);
+  }
+
   if (config.tooling.codegen !== "off") {
     installGroups.devDependencies.push(PACKAGE_DEFINITIONS.codegen.packageName);
   }
@@ -498,6 +503,12 @@ function buildSharedNotes({ commandName, currentConfig, nextConfig, packageManag
 
   if (nextConfig.tooling.codegen === "install") {
     notes.push("Codegen is installed only. Run manifesto setup codegen wire when you want compiler wiring.");
+  }
+
+  if (nextConfig.sample === "counter" && nextConfig.integration.mode === "none") {
+    notes.push(
+      'The sample imports a ".mel" file. Run manifesto integrate <mode> or use node-loader before executing it.',
+    );
   }
 
   return notes;

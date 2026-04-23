@@ -6,9 +6,9 @@ import { detectBundler } from "../lib/project.js";
 const h = React.createElement;
 
 const RUNTIME_OPTIONS = [
-  ["base", "base runtime", "Install sdk + compiler only."],
-  ["lineage", "lineage runtime", "Add lineage on top of the base runtime."],
-  ["gov", "gov runtime", "Add lineage + governance on top of the base runtime."],
+  ["base", "base runtime", "Install sdk. Add compiler only when you wire a MEL integration."],
+  ["lineage", "lineage runtime", "Install sdk + lineage. Add compiler only when you wire a MEL integration."],
+  ["gov", "gov runtime", "Install sdk + lineage + governance. Add compiler only when you wire a MEL integration."],
 ];
 
 const INTEGRATION_OPTIONS = [

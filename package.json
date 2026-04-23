@@ -1,6 +1,6 @@
 {
   "name": "@manifesto-ai/cli",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Official CLI for installing, configuring, and validating Manifesto projects",
   "type": "module",
   "main": "./src/index.js",
@@ -44,14 +44,14 @@
     "access": "public"
   },
   "devDependencies": {
-    "@manifesto-ai/codegen": "0.2.7",
+    "@manifesto-ai/codegen": "0.2.8",
     "@manifesto-ai/mel-lsp": "1.0.3",
-    "@manifesto-ai/sdk": "3.13.0",
-    "@manifesto-ai/skills": "1.0.1"
+    "@manifesto-ai/sdk": "3.17.3",
+    "@manifesto-ai/skills": "1.2.0"
   },
   "dependencies": {
-    "@manifesto-ai/compiler": "3.4.0",
-    "@manifesto-ai/core": "2.12.0",
+    "@manifesto-ai/compiler": "3.8.0",
+    "@manifesto-ai/core": "2.13.0",
     "@manifesto-ai/mcp": "1.0.0",
     "ink": "7.0.0",
     "react": "19.2.5",
