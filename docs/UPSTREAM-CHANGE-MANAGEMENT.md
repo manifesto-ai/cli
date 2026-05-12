@@ -132,13 +132,13 @@ CLI가 직접 품어도 되는 것은 다음 정도로 제한한다.
 ```jsonc
 {
   "name": "@manifesto-ai/governance",
-  "version": "3.3.0",
+  "version": "5.0.0",
   "manifesto": {
     "capability": "governance",
     "requires": ["lineage"],
     "compatibleWith": {
-      "sdk": ">=3.0.0",
-      "lineage": ">=3.0.0"
+      "sdk": ">=5.0.0",
+      "lineage": ">=5.0.0"
     },
     "cli": {
       "installNotes": [
@@ -153,7 +153,7 @@ CLI가 직접 품어도 되는 것은 다음 정도로 제한한다.
 ```jsonc
 {
   "name": "@manifesto-ai/compiler",
-  "version": "3.3.0",
+  "version": "5.0.0",
   "manifesto": {
     "capability": "compiler",
     "bundlerIntegration": {
@@ -221,14 +221,14 @@ CLI가 직접 품어도 되는 것은 다음 정도로 제한한다.
 ```json
 {
   "channel": "stable",
-  "updatedAt": "2026-04-04",
+  "updatedAt": "2026-05-08",
   "packages": {
-    "@manifesto-ai/sdk": "^3.8.0",
-    "@manifesto-ai/compiler": "^3.3.0",
-    "@manifesto-ai/lineage": "^3.7.0",
-    "@manifesto-ai/governance": "^3.7.0",
-    "@manifesto-ai/codegen": "^0.2.5",
-    "@manifesto-ai/skills": "^1.0.0"
+    "@manifesto-ai/sdk": "^5.0.0",
+    "@manifesto-ai/compiler": "^5.0.0",
+    "@manifesto-ai/lineage": "^5.0.0",
+    "@manifesto-ai/governance": "^5.0.0",
+    "@manifesto-ai/codegen": "^5.0.0",
+    "@manifesto-ai/skills": "^5.0.0"
   }
 }
 ```

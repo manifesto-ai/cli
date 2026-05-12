@@ -380,10 +380,10 @@ manifesto add skills
 manifesto doctor
 
   Packages
-    ✓ @manifesto-ai/sdk@3.8.0
-    ✓ @manifesto-ai/compiler@3.3.0 (devDependency)
-    ✓ @manifesto-ai/lineage@3.7.0
-    ✓ @manifesto-ai/governance@3.7.0
+    ✓ @manifesto-ai/sdk@5.0.0
+    ✓ @manifesto-ai/compiler@5.0.0 (devDependency)
+    ✓ @manifesto-ai/lineage@5.0.0
+    ✓ @manifesto-ai/governance@5.0.0
 
   Bundler Integration
     ✓ vite detected (vite.config.ts)
@@ -394,8 +394,8 @@ manifesto doctor
     ✓ codegen emitter configured — @manifesto-ai/codegen present
 
   Compatibility
-    ✓ sdk@3.8.0 ↔ core@4.0.0 ↔ host@4.0.0 — compatible
-    ✓ lineage@3.7.0 ↔ governance@3.7.0 — compatible
+    ✓ sdk@5.0.0 ↔ core@5.0.0 ↔ host@5.0.0 — compatible
+    ✓ lineage@5.0.0 ↔ governance@5.0.0 — compatible
 
   Skills
     ⚠ @manifesto-ai/skills installed, but requested agent setup not detected
@@ -430,10 +430,10 @@ manifesto doctor --strict
   "manifesto": {
     "capability": "governance",
     "requires": ["lineage"],
-    "provides": ["proposeAsync", "approve", "reject"],
+    "provides": ["action.submit", "waitForSettlement", "approve", "reject"],
     "compatibleWith": {
-      "sdk": ">=3.0.0",
-      "lineage": ">=3.0.0"
+      "sdk": ">=5.0.0",
+      "lineage": ">=5.0.0"
     }
   }
 }
@@ -463,7 +463,7 @@ Doctor는 이 필드를 읽어서 규칙을 도출한다:
 
 - `governance.requires` 에 `lineage`가 있으면 → lineage 설치 여부 검사
 - `compiler.bundlerIntegration` 에 bundler별 subpath가 있으면 → 해당 plugin 설정 검사
-- `governance.compatibleWith.sdk >= 3.0.0` 이면 → 설치된 sdk 버전 비교
+- `governance.compatibleWith.sdk >= 5.0.0` 이면 → 설치된 sdk 버전 비교
 
 이 전략의 장점:
 

@@ -738,18 +738,18 @@ function sampleBaseRuntime() {
   return `import { createManifesto } from "@manifesto-ai/sdk";
 import counterDomain from "../../manifesto/counter.mel";
 
-const runtime = createManifesto(counterDomain, {}).activate();
+const app = createManifesto(counterDomain, {}).activate();
 
 export function getCounterSnapshot() {
-  return runtime.getSnapshot();
+  return app.snapshot();
 }
 
 export async function incrementCounter() {
-  return runtime.dispatchAsync(runtime.createIntent(runtime.MEL.actions.increment));
+  return app.action.increment.submit();
 }
 
 export async function decrementCounter() {
-  return runtime.dispatchAsync(runtime.createIntent(runtime.MEL.actions.decrement));
+  return app.action.decrement.submit();
 }
 `;
 }
@@ -759,20 +759,20 @@ function sampleLineageRuntime() {
 import { createInMemoryLineageStore, withLineage } from "@manifesto-ai/lineage";
 import counterDomain from "../../manifesto/counter.mel";
 
-const runtime = withLineage(createManifesto(counterDomain, {}), {
+const app = withLineage(createManifesto(counterDomain, {}), {
   store: createInMemoryLineageStore(),
 }).activate();
 
 export function getCounterSnapshot() {
-  return runtime.getSnapshot();
+  return app.snapshot();
 }
 
-export async function commitIncrement() {
-  return runtime.commitAsync(runtime.createIntent(runtime.MEL.actions.increment));
+export async function incrementCounter() {
+  return app.action.increment.submit();
 }
 
-export async function commitDecrement() {
-  return runtime.commitAsync(runtime.createIntent(runtime.MEL.actions.decrement));
+export async function decrementCounter() {
+  return app.action.decrement.submit();
 }
 `;
 }
@@ -783,32 +783,33 @@ import { createInMemoryLineageStore, withLineage } from "@manifesto-ai/lineage";
 import { withGovernance } from "@manifesto-ai/governance";
 import counterDomain from "../../manifesto/counter.mel";
 
-const runtime = withGovernance(
+const app = withGovernance(
   withLineage(createManifesto(counterDomain, {}), {
     store: createInMemoryLineageStore(),
   }),
   {
-    bindings: {
+    bindings: [
       // TODO: replace this placeholder with your real actor bindings.
-    },
+    ],
     execution: {
       projectionId: "counter",
-      deriveActor(intent) {
-        return { actorId: "agent:demo", kind: "agent" };
+      deriveActor(candidate) {
+        return { actorId: "agent:demo", kind: "agent", meta: { action: candidate.action } };
       },
-      deriveSource(intent) {
-        return { kind: "agent", eventId: intent.intentId };
+      deriveSource(candidate) {
+        return { kind: "agent", eventId: \`action:\${String(candidate.action)}\` };
       },
     },
   },
 ).activate();
 
 export function getCounterSnapshot() {
-  return runtime.getSnapshot();
+  return app.snapshot();
 }
 
-export async function proposeIncrement() {
-  return runtime.proposeAsync(runtime.createIntent(runtime.MEL.actions.increment));
+export async function submitIncrement() {
+  const pending = await app.action.increment.submit();
+  return pending.ok ? pending.waitForSettlement() : pending;
 }
 `;
 }

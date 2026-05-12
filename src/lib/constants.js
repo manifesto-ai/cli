@@ -71,8 +71,8 @@ export const DOMAIN_ALLOWED_FILENAMES = [
   "README.md",
 ];
 export const PEER_VERSION_DEFAULTS = {
-  "@manifesto-ai/sdk": "^3.17.3",
-  "@manifesto-ai/lineage": "^3.11.3",
+  "@manifesto-ai/sdk": "^5.0.0",
+  "@manifesto-ai/lineage": "^5.0.0",
   "@manifesto-ai/mcp": "^1.0.0",
 };
 
